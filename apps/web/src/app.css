@@ -107,6 +107,30 @@
   background: color-mix(in oklab, var(--accent-dim) 55%, transparent);
 }
 
+
+.preset-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .primary {
   border: 0;
   background: var(--accent);

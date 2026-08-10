@@ -14,7 +14,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     let detail = res.statusText;
     try {
       const body = (await res.json()) as { error?: string; installHint?: string };
-      detail = body.installHint ? `${body.error ?? detail}\n${body.installHint}` : (body.error ?? detail);
+      detail = body.installHint
+        ? `${body.error ?? detail}\n${body.installHint}`
+        : (body.error ?? detail);
     } catch {
       // ignore
     }
@@ -46,8 +48,7 @@ function loadSavedWorkspace(): Partial<SavedWorkspace> {
 }
 
 function splitIds(sessions: SessionInfo[], count: LayoutPreset): (SessionInfo | null)[] {
-  const slots: (SessionInfo | null)[] = Array.from({ length: count }, (_, i) => sessions[i] ?? null);
-  return slots;
+  return Array.from({ length: count }, (_, i) => sessions[i] ?? null);
 }
 
 export function App() {
@@ -96,6 +97,11 @@ export function App() {
     [agents],
   );
 
+  const isAvailable = useCallback(
+    (id: AgentId) => availableAgents.some((a) => a.id === id),
+    [availableAgents],
+  );
+
   useEffect(() => {
     if (availableAgents.length === 0) return;
     if (!availableAgents.some((a) => a.id === agentId)) {
@@ -103,21 +109,56 @@ export function App() {
     }
   }, [availableAgents, agentId]);
 
+  const createOne = async (
+    nextAgent: AgentId,
+    nextTitle?: string,
+  ): Promise<SessionInfo> => {
+    const res = await api<{ session: SessionInfo }>("/api/sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        agentId: nextAgent,
+        cwd: cwd.trim() || undefined,
+        title: nextTitle?.trim() || undefined,
+      }),
+    });
+    return res.session;
+  };
+
   const createSession = async () => {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ session: SessionInfo }>("/api/sessions", {
-        method: "POST",
-        body: JSON.stringify({
-          agentId,
-          cwd: cwd.trim() || undefined,
-          title: title.trim() || undefined,
-        }),
-      });
-      setSessions((prev) => [...prev, res.session]);
-      setActiveId(res.session.id);
+      const session = await createOne(agentId, title);
+      setSessions((prev) => [...prev, session]);
+      setActiveId(session.id);
       setTitle("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** BridgeSpace-style: open several agents at once into the grid. */
+  const launchPreset = async (ids: AgentId[], name: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const missing = ids.filter((id) => !isAvailable(id));
+      if (missing.length > 0) {
+        throw new Error(
+          `Missing agents: ${missing.join(", ")}. Install their CLIs first.`,
+        );
+      }
+      setWorkspaceName(name);
+      setLayout(ids.length <= 1 ? 1 : ids.length <= 2 ? 2 : 4);
+      const created: SessionInfo[] = [];
+      for (const id of ids) {
+        const label = agents.find((a) => a.id === id)?.displayName ?? id;
+        created.push(await createOne(id, `${name} · ${label}`));
+      }
+      setSessions((prev) => [...prev, ...created]);
+      setActiveId(created[0]?.id ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -184,6 +225,38 @@ export function App() {
         </label>
 
         <label className="field">
+          <span>Quick launch</span>
+          <div className="preset-col">
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || health !== "ok"}
+              onClick={() => void launchPreset(["claude", "codex"], workspaceName || "pair")}
+            >
+              Claude + Codex
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || health !== "ok"}
+              onClick={() =>
+                void launchPreset(["claude", "cursor-agent"], workspaceName || "pair")
+              }
+            >
+              Claude + Cursor
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || health !== "ok"}
+              onClick={() => void launchPreset(["shell", "shell"], workspaceName || "shells")}
+            >
+              Two shells
+            </button>
+          </div>
+        </label>
+
+        <label className="field">
           <span>Agent</span>
           <select value={agentId} onChange={(e) => setAgentId(e.target.value as AgentId)}>
             {agents.map((a) => (
@@ -213,7 +286,12 @@ export function App() {
           />
         </label>
 
-        <button type="button" className="primary" disabled={busy || health !== "ok"} onClick={() => void createSession()}>
+        <button
+          type="button"
+          className="primary"
+          disabled={busy || health !== "ok"}
+          onClick={() => void createSession()}
+        >
           Launch pane
         </button>
 
