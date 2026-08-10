@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * Minimal STDIO MCP-like JSON-RPC server for agentgrid shared memory.
- * Tools: memory_list, memory_read, memory_write
+ * STDIO MCP server for agentgrid.
  *
- * Configure Claude Code / Cursor with something like:
+ * Local tools talk to ~/.agentgrid (memory).
+ * Live tools call the Fastify API on 127.0.0.1:4318 when the server is up.
+ *
+ * Configure Claude Code / Cursor:
  *   command: pnpm
  *   args: ["--filter", "@agentgrid/mcp", "start"]
  *   cwd: /path/to/agentgrid
@@ -16,26 +18,56 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { DEFAULT_SERVER_PORT } from "@agentgrid/shared";
 
 const memoryDir = join(homedir(), ".agentgrid", "memory");
 mkdirSync(memoryDir, { recursive: true });
+const apiBase = `http://127.0.0.1:${DEFAULT_SERVER_PORT}`;
 
 type Json = Record<string, unknown>;
 
 function respond(id: unknown, result: unknown) {
-  const msg = { jsonrpc: "2.0", id, result };
-  process.stdout.write(JSON.stringify(msg) + "\n");
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n");
 }
 
 function respondError(id: unknown, message: string) {
-  const msg = {
-    jsonrpc: "2.0",
-    id,
-    error: { code: -32000, message },
-  };
-  process.stdout.write(JSON.stringify(msg) + "\n");
+  process.stdout.write(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32000, message },
+    }) + "\n",
+  );
+}
+
+function textResult(payload: unknown) {
+  const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+  return { content: [{ type: "text", text }] };
+}
+
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${apiBase}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = (await res.json()) as { error?: string };
+      detail = body.error ?? detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(`API ${path}: ${detail}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
 }
 
 function listNotes() {
@@ -67,10 +99,18 @@ function writeNote(id: string, content: string) {
   return { id: safe, path: abs };
 }
 
+function deleteNote(id: string) {
+  const safe = id.replace(/[^a-zA-Z0-9_-]/g, "");
+  const abs = join(memoryDir, `${safe}.md`);
+  if (!existsSync(abs)) throw new Error(`note not found: ${id}`);
+  unlinkSync(abs);
+  return { id: safe, deleted: true };
+}
+
 const tools = [
   {
     name: "memory_list",
-    description: "List shared agentgrid memory notes",
+    description: "List shared agentgrid memory notes (~/.agentgrid/memory)",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -87,12 +127,96 @@ const tools = [
     description: "Write/overwrite a shared memory note",
     inputSchema: {
       type: "object",
-      properties: {
-        id: { type: "string" },
-        content: { type: "string" },
-      },
+      properties: { id: { type: "string" }, content: { type: "string" } },
       required: ["id", "content"],
     },
+  },
+  {
+    name: "memory_delete",
+    description: "Delete a shared memory note by id",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "health",
+    description: "Check whether the agentgrid Fastify server is online on :4318",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "agents_list",
+    description: "List available coding agents and whether they are installed",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "sessions_list",
+    description: "List live PTY sessions managed by the agentgrid server",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "fs_roots",
+    description: "List allowed filesystem roots for the Files view",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "fs_tree",
+    description: "List directory entries under an allowed root",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: { type: "string" },
+        path: { type: "string", description: "Relative path inside root (default .)" },
+      },
+      required: ["root"],
+    },
+  },
+  {
+    name: "fs_read",
+    description: "Read a text file under an allowed root",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: { type: "string" },
+        path: { type: "string" },
+      },
+      required: ["root", "path"],
+    },
+  },
+  {
+    name: "kanban_list",
+    description: "List kanban cards from the agentgrid board",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "kanban_create",
+    description: "Create a kanban card (column: backlog|doing|review|done)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        body: { type: "string" },
+        column: { type: "string" },
+        agentId: { type: "string" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "swarm_list",
+    description: "List swarm missions and their roles",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "skills_list",
+    description: "List bundled skills that can be applied to a pane",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "workspaces_list",
+    description: "List saved workspace templates",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
 ];
 
@@ -105,7 +229,7 @@ async function handle(msg: Json) {
     respond(id, {
       protocolVersion: "2024-11-05",
       capabilities: { tools: {} },
-      serverInfo: { name: "agentgrid-memory", version: "0.1.0" },
+      serverInfo: { name: "agentgrid", version: "0.2.0" },
     });
     return;
   }
@@ -119,19 +243,61 @@ async function handle(msg: Json) {
     const args = (params.arguments ?? {}) as Json;
     try {
       if (name === "memory_list") {
-        respond(id, {
-          content: [{ type: "text", text: JSON.stringify(listNotes(), null, 2) }],
-        });
+        respond(id, textResult(listNotes()));
       } else if (name === "memory_read") {
-        const note = readNote(String(args.id ?? ""));
-        respond(id, {
-          content: [{ type: "text", text: note.content }],
-        });
+        respond(id, textResult(readNote(String(args.id ?? "")).content));
       } else if (name === "memory_write") {
         const saved = writeNote(String(args.id ?? ""), String(args.content ?? ""));
-        respond(id, {
-          content: [{ type: "text", text: `wrote ${saved.path}` }],
+        respond(id, textResult(`wrote ${saved.path}`));
+      } else if (name === "memory_delete") {
+        respond(id, textResult(deleteNote(String(args.id ?? ""))));
+      } else if (name === "health") {
+        const body = await api<{ ok: boolean; service?: string }>("/api/health");
+        respond(id, textResult(body));
+      } else if (name === "agents_list") {
+        const body = await api<{ agents: unknown[] }>("/api/agents");
+        respond(id, textResult(body.agents));
+      } else if (name === "sessions_list") {
+        const body = await api<{ sessions: unknown[] }>("/api/sessions");
+        respond(id, textResult(body.sessions));
+      } else if (name === "fs_roots") {
+        const body = await api<{ roots: string[] }>("/api/fs/roots");
+        respond(id, textResult(body.roots));
+      } else if (name === "fs_tree") {
+        const root = encodeURIComponent(String(args.root ?? ""));
+        const path = encodeURIComponent(String(args.path ?? "."));
+        const body = await api<{ entries: unknown[] }>(`/api/fs/tree?root=${root}&path=${path}`);
+        respond(id, textResult(body.entries));
+      } else if (name === "fs_read") {
+        const root = encodeURIComponent(String(args.root ?? ""));
+        const path = encodeURIComponent(String(args.path ?? ""));
+        const body = await api<{ file: { content: string; path: string } }>(
+          `/api/fs/file?root=${root}&path=${path}`,
+        );
+        respond(id, textResult(body.file));
+      } else if (name === "kanban_list") {
+        const body = await api<{ cards: unknown[] }>("/api/kanban");
+        respond(id, textResult(body.cards));
+      } else if (name === "kanban_create") {
+        const body = await api<{ card: unknown }>("/api/kanban/cards", {
+          method: "POST",
+          body: JSON.stringify({
+            title: String(args.title ?? ""),
+            body: args.body != null ? String(args.body) : undefined,
+            column: args.column != null ? String(args.column) : undefined,
+            agentId: args.agentId != null ? String(args.agentId) : undefined,
+          }),
         });
+        respond(id, textResult(body.card));
+      } else if (name === "swarm_list") {
+        const body = await api<{ swarms: unknown[] }>("/api/swarm");
+        respond(id, textResult(body.swarms));
+      } else if (name === "skills_list") {
+        const body = await api<{ skills: unknown[] }>("/api/skills");
+        respond(id, textResult(body.skills));
+      } else if (name === "workspaces_list") {
+        const body = await api<{ workspaces: unknown[] }>("/api/workspaces");
+        respond(id, textResult(body.workspaces));
       } else {
         respondError(id, `unknown tool: ${name}`);
       }
@@ -144,7 +310,6 @@ async function handle(msg: Json) {
     respond(id, {});
     return;
   }
-  // Ignore unknowns with empty result when no id
   if (id !== undefined) respondError(id, `unsupported method: ${method}`);
 }
 
@@ -160,5 +325,5 @@ rl.on("line", (line) => {
 });
 
 process.stderr.write(
-  `agentgrid-mcp ready — memory dir ${memoryDir}\n`,
+  `agentgrid-mcp ready — memory ${memoryDir} · API ${apiBase}\n`,
 );

@@ -23,4 +23,9 @@ if (!String(conf.build?.frontendDist || "").includes("web/dist")) {
   throw new Error("frontendDist must point at apps/web/dist");
 }
 
+const resources = conf.bundle?.resources ?? [];
+if (!resources.some((r) => String(r).includes("ensure-server.mjs"))) {
+  throw new Error("bundle.resources must include ensure-server.mjs");
+}
 console.log("desktop config ok:", conf.productName, conf.identifier);
+

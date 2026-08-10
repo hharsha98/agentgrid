@@ -24,5 +24,6 @@ pnpm desktop:build
 ```
 
 Builds `apps/web` into static assets and packages a native app via Tauri.
-The packaged UI talks to `http://127.0.0.1:4318`, so start the server
-(`pnpm --filter @agentgrid/server start`) alongside the app for now.
+On launch, the app runs `scripts/ensure-server.mjs`, which starts
+`@agentgrid/server` on :4318 if it is not already healthy. Set
+`AGENTGRID_ROOT` if the monorepo is not discoverable from the app bundle.

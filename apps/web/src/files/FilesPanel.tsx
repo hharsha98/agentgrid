@@ -1,10 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Editor from "@monaco-editor/react";
 import type { FsEntry, FsFileContent } from "@agentgrid/shared";
 import { api } from "../lib/http";
 
-
 interface Props {
   initialRoot?: string;
+}
+
+function languageForPath(path: string): string {
+  const name = path.toLowerCase();
+  if (name.endsWith(".ts") || name.endsWith(".tsx")) return "typescript";
+  if (name.endsWith(".js") || name.endsWith(".jsx") || name.endsWith(".mjs") || name.endsWith(".cjs"))
+    return "javascript";
+  if (name.endsWith(".json")) return "json";
+  if (name.endsWith(".md") || name.endsWith(".mdx")) return "markdown";
+  if (name.endsWith(".css")) return "css";
+  if (name.endsWith(".html") || name.endsWith(".htm")) return "html";
+  if (name.endsWith(".rs")) return "rust";
+  if (name.endsWith(".py")) return "python";
+  if (name.endsWith(".yml") || name.endsWith(".yaml")) return "yaml";
+  if (name.endsWith(".toml")) return "toml";
+  if (name.endsWith(".sh") || name.endsWith(".zsh") || name.endsWith(".bash")) return "shell";
+  return "plaintext";
+}
+
+/** Monaco theme names that roughly match our CSS themes. */
+function monacoTheme(): string {
+  const id = document.documentElement.dataset.theme;
+  if (id === "amber") return "vs-dark";
+  if (id === "contrast") return "hc-black";
+  return "vs-dark";
 }
 
 export function FilesPanel({ initialRoot }: Props) {
@@ -18,6 +43,22 @@ export function FilesPanel({ initialRoot }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("");
+  const [editorTheme, setEditorTheme] = useState(monacoTheme);
+
+  const language = useMemo(
+    () => (file ? languageForPath(file.path) : "plaintext"),
+    [file],
+  );
+
+  useEffect(() => {
+    const sync = () => setEditorTheme(monacoTheme());
+    const obs = new MutationObserver(sync);
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => obs.disconnect();
+  }, []);
 
   const loadTree = useCallback(async (nextRoot: string, nextCwd: string) => {
     const res = await api<{ entries: FsEntry[] }>(
@@ -151,14 +192,28 @@ export function FilesPanel({ initialRoot }: Props) {
                 {file.path}
                 {file.truncated ? " (truncated)" : ""}
               </div>
-              <textarea
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  setDirty(true);
-                }}
-                spellCheck={false}
-              />
+              <div className="files-monaco">
+                <Editor
+                  height="100%"
+                  theme={editorTheme}
+                  language={language}
+                  value={draft}
+                  path={file.path}
+                  options={{
+                    fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+                    fontSize: 13,
+                    minimap: { enabled: false },
+                    wordWrap: "on",
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    readOnly: Boolean(file.truncated),
+                  }}
+                  onChange={(value) => {
+                    setDraft(value ?? "");
+                    setDirty(true);
+                  }}
+                />
+              </div>
             </>
           ) : (
             <div className="empty-pane">Select a file to edit</div>

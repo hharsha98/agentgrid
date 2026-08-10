@@ -19,7 +19,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 /**
  * Keyboard shortcuts (macOS-friendly: Meta, also Ctrl):
- * - Meta/Ctrl+1|2|4  → layout
+ * - Meta/Ctrl+1|2|4|0 → layout (0 = 16)
  * - Meta/Ctrl+Enter  → launch pane
  * - Meta/Ctrl+S      → save workspace template
  * - Meta/Ctrl+] / [  → next / previous session
@@ -48,6 +48,9 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
       } else if (e.key === "4") {
         e.preventDefault();
         handlers.onLayout?.(4);
+      } else if (e.key === "0") {
+        e.preventDefault();
+        handlers.onLayout?.(16);
       } else if (e.key === "Enter") {
         e.preventDefault();
         handlers.onLaunchPane?.();

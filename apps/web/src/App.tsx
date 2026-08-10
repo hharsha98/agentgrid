@@ -348,7 +348,13 @@ export function App() {
 
   const slots = splitIds(sessions, layout);
   const gridClass =
-    layout === 1 ? "grid-1" : layout === 2 ? "grid-2" : "grid-4";
+    layout === 1
+      ? "grid-1"
+      : layout === 2
+        ? "grid-2"
+        : layout === 4
+          ? "grid-4"
+          : "grid-16";
 
   return (
     <div className="app-shell">
@@ -400,7 +406,7 @@ export function App() {
         <label className="field">
           <span>Layout</span>
           <div className="layout-row">
-            {([1, 2, 4] as LayoutPreset[]).map((n) => (
+            {([1, 2, 4, 16] as LayoutPreset[]).map((n) => (
               <button
                 key={n}
                 type="button"
@@ -577,7 +583,7 @@ export function App() {
         </button>
         {showHelp && (
           <pre className="help">
-{`⌘/Ctrl+1|2|4     layout
+{`⌘/Ctrl+1|2|4|0   layout (0 = 16 panes)
 ⌘/Ctrl+Enter     launch pane
 ⌘/Ctrl+S         save template
 ⌘/Ctrl+[ ]       prev/next session

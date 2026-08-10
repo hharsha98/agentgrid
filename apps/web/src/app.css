@@ -241,6 +241,15 @@
   grid-template-rows: 1fr 1fr;
 }
 
+.grid-16 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+}
+
+.grid-16 .pane-title {
+  font-size: 0.7rem;
+}
+
 .pane {
   display: flex;
   flex-direction: column;
@@ -299,7 +308,8 @@
   }
 
   .grid-2,
-  .grid-4 {
+  .grid-4,
+  .grid-16 {
     grid-template-columns: 1fr;
     grid-template-rows: repeat(auto-fit, minmax(220px, 1fr));
   }
@@ -625,6 +635,12 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.files-monaco {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
 .files-editor textarea,

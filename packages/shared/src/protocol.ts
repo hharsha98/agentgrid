@@ -94,7 +94,7 @@ export type ServerMessage =
   | { type: "error"; message: string };
 
 
-export type LayoutPreset = 1 | 2 | 4;
+export type LayoutPreset = 1 | 2 | 4 | 16;
 
 export interface WorkspacePaneSpec {
   agentId: AgentId;

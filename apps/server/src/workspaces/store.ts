@@ -16,7 +16,7 @@ function storePath(): string {
 }
 
 function isLayout(value: unknown): value is LayoutPreset {
-  return value === 1 || value === 2 || value === 4;
+  return value === 1 || value === 2 || value === 4 || value === 16;
 }
 
 function sanitize(raw: unknown): WorkspaceTemplate | null {
@@ -73,7 +73,7 @@ export class WorkspaceStore {
   upsert(input: UpsertWorkspaceRequest): WorkspaceTemplate {
     const name = input.name.trim();
     if (!name) throw new Error("name is required");
-    if (!isLayout(input.layout)) throw new Error("layout must be 1, 2, or 4");
+    if (!isLayout(input.layout)) throw new Error("layout must be 1, 2, 4, or 16");
     if (!Array.isArray(input.panes) || input.panes.length === 0) {
       throw new Error("at least one pane is required");
     }

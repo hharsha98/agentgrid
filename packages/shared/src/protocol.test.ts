@@ -4,6 +4,7 @@ import {
   DEFAULT_SERVER_PORT,
   DEFAULT_WEB_PORT,
   isAgentId,
+  type LayoutPreset,
 } from "./protocol.js";
 
 describe("protocol", () => {
@@ -26,5 +27,10 @@ describe("protocol", () => {
   it("type-guards agent ids", () => {
     expect(isAgentId("claude")).toBe(true);
     expect(isAgentId("nope")).toBe(false);
+  });
+
+  it("allows 16-pane layout presets", () => {
+    const layouts: LayoutPreset[] = [1, 2, 4, 16];
+    expect(layouts).toContain(16);
   });
 });
