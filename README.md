@@ -8,6 +8,8 @@ This is the **Cursor lane**. It is intentionally separate from
 [`vibedeck`](https://github.com/hharsha98/vibedeck) (Claude Code’s project).
 Do not merge the two repos.
 
+Feature comparison with BridgeSpace: [docs/BRIDGESPACE-PARITY.md](./docs/BRIDGESPACE-PARITY.md).
+
 | | vibedeck (Claude Code) | agentgrid (Cursor) |
 |---|---|---|
 | Folder | `Projects/vibedeck` | `Projects/agentgrid` |
@@ -18,8 +20,8 @@ Do not merge the two repos.
 
 - Local Fastify server that spawns real PTY sessions (`node-pty`)
 - React + xterm.js UI with GPU rendering when available
-- Launch **Claude Code**, **cursor-agent**, **Codex**, or a plain **shell**
-- Layout presets: 1 / 2 / 4 / **16** panes visible at once
+- Launch **Claude Code**, **cursor-agent**, **Codex**, **Gemini CLI**, or a plain **shell**
+- Layout presets: 1 / 2 / 4 / 6 / 8 / 12 / **16** panes (BridgeSpace-style grids)
 - Named workspace label; layout / cwd / agent preference saved in the browser
 - Saved workspace templates on disk (`~/.agentgrid/workspaces.json`) with one-click relaunch
 - Keyboard shortcuts (⌘/Ctrl+1/2/4, Enter, S, [ ], Shift+T cycles theme)

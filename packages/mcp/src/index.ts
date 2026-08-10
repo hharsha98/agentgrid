@@ -197,7 +197,7 @@ const tools = [
       properties: {
         title: { type: "string" },
         body: { type: "string" },
-        column: { type: "string" },
+        column: { type: "string", description: "todo | in_progress | in_review | done" },
         agentId: { type: "string" },
       },
       required: ["title"],
@@ -217,6 +217,56 @@ const tools = [
     name: "workspaces_list",
     description: "List saved workspace templates",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "fs_write",
+    description: "Write a text file under an allowed root",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: { type: "string" },
+        path: { type: "string" },
+        content: { type: "string" },
+      },
+      required: ["root", "path", "content"],
+    },
+  },
+  {
+    name: "skills_apply",
+    description: "Apply a bundled skill prompt into a live session pane",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        sessionId: { type: "string" },
+      },
+      required: ["id", "sessionId"],
+    },
+  },
+  {
+    name: "swarm_create",
+    description: "Launch a 4-role swarm mission",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        mission: { type: "string" },
+        cwd: { type: "string" },
+      },
+      required: ["name", "mission"],
+    },
+  },
+  {
+    name: "kanban_dispatch",
+    description: "Dispatch a kanban card into a new agent session",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        cwd: { type: "string" },
+      },
+      required: ["id"],
+    },
   },
 ];
 
@@ -298,6 +348,43 @@ async function handle(msg: Json) {
       } else if (name === "workspaces_list") {
         const body = await api<{ workspaces: unknown[] }>("/api/workspaces");
         respond(id, textResult(body.workspaces));
+      } else if (name === "fs_write") {
+        const body = await api<{ file: unknown }>("/api/fs/file", {
+          method: "PUT",
+          body: JSON.stringify({
+            root: String(args.root ?? ""),
+            path: String(args.path ?? ""),
+            content: String(args.content ?? ""),
+          }),
+        });
+        respond(id, textResult(body.file));
+      } else if (name === "skills_apply") {
+        const skillId = encodeURIComponent(String(args.id ?? ""));
+        const body = await api<{ skill: unknown }>(`/api/skills/${skillId}/apply`, {
+          method: "POST",
+          body: JSON.stringify({ sessionId: String(args.sessionId ?? "") }),
+        });
+        respond(id, textResult(body.skill));
+      } else if (name === "swarm_create") {
+        const body = await api<{ swarm: unknown }>("/api/swarm", {
+          method: "POST",
+          body: JSON.stringify({
+            name: String(args.name ?? ""),
+            mission: String(args.mission ?? ""),
+            cwd: args.cwd != null ? String(args.cwd) : undefined,
+          }),
+        });
+        respond(id, textResult(body.swarm));
+      } else if (name === "kanban_dispatch") {
+        const cardId = encodeURIComponent(String(args.id ?? ""));
+        const body = await api<{ card: unknown; session: unknown }>(
+          `/api/kanban/cards/${cardId}/dispatch`,
+          {
+            method: "POST",
+            body: JSON.stringify({ cwd: args.cwd != null ? String(args.cwd) : undefined }),
+          },
+        );
+        respond(id, textResult(body));
       } else {
         respondError(id, `unknown tool: ${name}`);
       }

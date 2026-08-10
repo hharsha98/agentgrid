@@ -1,6 +1,6 @@
 /** Shared protocol between the Fastify server and the React web app. */
 
-export type AgentId = "claude" | "cursor-agent" | "codex" | "shell";
+export type AgentId = "claude" | "cursor-agent" | "codex" | "gemini" | "shell";
 
 export interface AgentSpec {
   id: AgentId;
@@ -33,6 +33,13 @@ export const AGENT_SPECS: Record<AgentId, AgentSpec> = {
     command: "codex",
     args: [],
     installHint: "Install the OpenAI Codex CLI so `codex` is on your PATH.",
+  },
+  gemini: {
+    id: "gemini",
+    displayName: "Gemini CLI",
+    command: "gemini",
+    args: [],
+    installHint: "Install Google Gemini CLI so `gemini` is on your PATH.",
   },
   shell: {
     id: "shell",
@@ -94,7 +101,7 @@ export type ServerMessage =
   | { type: "error"; message: string };
 
 
-export type LayoutPreset = 1 | 2 | 4 | 16;
+export type LayoutPreset = 1 | 2 | 4 | 6 | 8 | 12 | 16;
 
 export interface WorkspacePaneSpec {
   agentId: AgentId;
@@ -188,6 +195,13 @@ export interface FileOwnership {
   claimedAt: string;
 }
 
+export interface SwarmMailMessage {
+  id: string;
+  fromRole: SwarmRole | "human";
+  body: string;
+  createdAt: string;
+}
+
 export interface SwarmMission {
   id: string;
   name: string;
@@ -196,6 +210,7 @@ export interface SwarmMission {
   status: "running" | "done" | "failed";
   members: SwarmMember[];
   ownership: FileOwnership[];
+  mailbox: SwarmMailMessage[];
   createdAt: string;
   updatedAt: string;
 }
@@ -212,6 +227,11 @@ export interface ClaimFileRequest {
   path: string;
   role: SwarmRole;
   sessionId: string;
+}
+
+export interface PostSwarmMailRequest {
+  fromRole: SwarmRole | "human";
+  body: string;
 }
 
 export interface SkillSpec {

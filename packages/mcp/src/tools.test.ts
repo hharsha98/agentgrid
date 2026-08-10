@@ -23,6 +23,7 @@ describe("agentgrid mcp tools", () => {
       "swarm_list",
       "skills_list",
       "workspaces_list",
+      "fs_write",
     ]) {
       expect(src).toContain(`name: "${name}"`);
     }

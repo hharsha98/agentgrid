@@ -17,6 +17,7 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
   const [working, setWorking] = useState(false);
   const [claimPath, setClaimPath] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mailBody, setMailBody] = useState("");
 
   const refresh = async () => {
     const res = await api<{ swarms: SwarmMission[] }>("/api/swarm");
@@ -69,6 +70,41 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
         }),
       });
       setClaimPath("");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const setStatus = async (status: "running" | "done" | "failed") => {
+    if (!selectedId) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await api(`/api/swarm/${selectedId}/status`, {
+        method: "POST",
+        body: JSON.stringify({ status }),
+      });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const postMail = async () => {
+    if (!selectedId || !mailBody.trim()) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await api(`/api/swarm/${selectedId}/mail`, {
+        method: "POST",
+        body: JSON.stringify({ fromRole: "human", body: mailBody.trim() }),
+      });
+      setMailBody("");
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -151,6 +187,37 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
                 />
                 <button type="button" className="secondary" disabled={working} onClick={() => void claim()}>
                   Claim for builder
+                </button>
+              </div>
+              <div className="section-label">Status</div>
+              <div className="swarm-status-row">
+                <button type="button" className="secondary" disabled={working} onClick={() => void setStatus("running")}>
+                  Running
+                </button>
+                <button type="button" className="secondary" disabled={working} onClick={() => void setStatus("done")}>
+                  Mark done
+                </button>
+                <button type="button" className="secondary" disabled={working} onClick={() => void setStatus("failed")}>
+                  Mark failed
+                </button>
+                <span className="session-meta">now: {selected.status}</span>
+              </div>
+              <div className="section-label">Shared mailbox</div>
+              <div className="swarm-mailbox">
+                {(selected.mailbox ?? []).map((m) => (
+                  <div key={m.id} className="swarm-mail-item">
+                    <strong>{m.fromRole}</strong>
+                    <div>{m.body}</div>
+                  </div>
+                ))}
+                <textarea
+                  value={mailBody}
+                  onChange={(e) => setMailBody(e.target.value)}
+                  placeholder="Post a note the whole swarm can see…"
+                  rows={3}
+                />
+                <button type="button" className="secondary" disabled={working || !mailBody.trim()} onClick={() => void postMail()}>
+                  Post to mailbox
                 </button>
               </div>
             </>

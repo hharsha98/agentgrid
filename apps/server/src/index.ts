@@ -13,6 +13,7 @@ import {
   type ApplySkillRequest,
   type ClaimFileRequest,
   type CreateSwarmRequest,
+  type PostSwarmMailRequest,
 } from "@agentgrid/shared";
 import { detectAgents } from "./pty/agents.js";
 import { AgentMissingError, SessionManager } from "./pty/session-manager.js";
@@ -393,6 +394,18 @@ export async function buildApp(options?: {
       const swarm = swarms.setStatus(req.params.id, status);
       if (!swarm) return reply.code(404).send({ error: "swarm not found" });
       return { swarm };
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: PostSwarmMailRequest }>(
+    "/api/swarm/:id/mail",
+    async (req, reply) => {
+      try {
+        const swarm = swarms.postMail(req.params.id, req.body ?? ({} as PostSwarmMailRequest));
+        return { swarm };
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      }
     },
   );
 

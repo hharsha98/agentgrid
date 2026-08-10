@@ -64,9 +64,18 @@ export function SkillsPanel({ sessions, activeSessionId, busy, onApplied }: Prop
       </label>
       {error && <pre className="error">{error}</pre>}
       {message && <div className="skills-msg">{message}</div>}
+      <p className="skills-hint">Drag a skill onto any terminal pane, or apply below.</p>
       <div className="skills-grid">
         {skills.map((skill) => (
-          <article key={skill.id} className="skill-card">
+          <article
+            key={skill.id}
+            className="skill-card"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData("application/x-agentgrid-skill", skill.id);
+              e.dataTransfer.effectAllowed = "copy";
+            }}
+          >
             <h3>{skill.name}</h3>
             <p>{skill.description}</p>
             <button

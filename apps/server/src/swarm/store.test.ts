@@ -29,6 +29,7 @@ describe("SwarmStore", () => {
       "reviewer",
       "scout",
     ]);
+    expect(draft.mailbox).toEqual([]);
     store.save(draft);
     expect(store.list()).toHaveLength(1);
   });
@@ -49,6 +50,15 @@ describe("SwarmStore", () => {
         sessionId: "s2",
       }),
     ).toThrow(/already owned/);
+  });
+
+  it("posts mailbox messages", () => {
+    const store = fresh();
+    const draft = store.createDraft({ name: "M", mission: "Do it" });
+    store.save(draft);
+    const next = store.postMail(draft.id, { fromRole: "human", body: "hello team" });
+    expect(next.mailbox).toHaveLength(1);
+    expect(next.mailbox[0]?.body).toBe("hello team");
   });
 });
 

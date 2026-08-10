@@ -8,6 +8,8 @@ import {
   type ClaimFileRequest,
   type CreateSwarmRequest,
   type FileOwnership,
+  type PostSwarmMailRequest,
+  type SwarmMailMessage,
   type SwarmMember,
   type SwarmMission,
   type SwarmRole,
@@ -65,6 +67,7 @@ function sanitize(raw: unknown): SwarmMission | null {
   }
   if (o.status !== "running" && o.status !== "done" && o.status !== "failed") return null;
   if (!Array.isArray(o.members) || !Array.isArray(o.ownership)) return null;
+  const mailbox = Array.isArray(o.mailbox) ? (o.mailbox as SwarmMailMessage[]) : [];
   return {
     id: o.id,
     name: o.name,
@@ -73,6 +76,7 @@ function sanitize(raw: unknown): SwarmMission | null {
     status: o.status,
     members: o.members as SwarmMember[],
     ownership: o.ownership as FileOwnership[],
+    mailbox,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : new Date().toISOString(),
     updatedAt: typeof o.updatedAt === "string" ? o.updatedAt : new Date().toISOString(),
   };
@@ -128,6 +132,7 @@ export class SwarmStore {
       status: "running",
       members,
       ownership: [],
+      mailbox: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -183,6 +188,21 @@ export class SwarmStore {
     const mission = this.get(id);
     if (!mission) return undefined;
     return this.save({ ...mission, status });
+  }
+
+  postMail(id: string, input: PostSwarmMailRequest): SwarmMission {
+    const mission = this.get(id);
+    if (!mission) throw new Error("swarm not found");
+    const body = (input.body ?? "").trim();
+    if (!body) throw new Error("body required");
+    const fromRole = input.fromRole ?? "human";
+    const msg: SwarmMailMessage = {
+      id: randomUUID(),
+      fromRole,
+      body,
+      createdAt: new Date().toISOString(),
+    };
+    return this.save({ ...mission, mailbox: [...(mission.mailbox ?? []), msg] });
   }
 
   private write(items: SwarmMission[]): void {

@@ -264,13 +264,30 @@ export function App() {
   );
 
 
-  const createCard = async (cardTitle: string, cardAgent: AgentId) => {
+  const applySkillToSession = async (skillId: string, sessionId: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/skills/${skillId}/apply`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId }),
+      });
+      setActiveId(sessionId);
+      setView("grid");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createCard = async (cardTitle: string, cardAgent: AgentId, body?: string) => {
     setBusy(true);
     setError(null);
     try {
       const res = await api<{ card: KanbanCard }>("/api/kanban/cards", {
         method: "POST",
-        body: JSON.stringify({ title: cardTitle, agentId: cardAgent }),
+        body: JSON.stringify({ title: cardTitle, agentId: cardAgent, body }),
       });
       setCards((prev) => [...prev, res.card]);
     } catch (err) {
@@ -347,14 +364,7 @@ export function App() {
   useKeyboardShortcuts(shortcutHandlers);
 
   const slots = splitIds(sessions, layout);
-  const gridClass =
-    layout === 1
-      ? "grid-1"
-      : layout === 2
-        ? "grid-2"
-        : layout === 4
-          ? "grid-4"
-          : "grid-16";
+  const gridClass = `grid-${layout}`;
 
   return (
     <div className="app-shell">
@@ -406,7 +416,7 @@ export function App() {
         <label className="field">
           <span>Layout</span>
           <div className="layout-row">
-            {([1, 2, 4, 16] as LayoutPreset[]).map((n) => (
+            {([1, 2, 4, 6, 8, 12, 16] as LayoutPreset[]).map((n) => (
               <button
                 key={n}
                 type="button"
@@ -583,11 +593,12 @@ export function App() {
         </button>
         {showHelp && (
           <pre className="help">
-{`⌘/Ctrl+1|2|4|0   layout (0 = 16 panes)
+{`⌘/Ctrl+1|2|4|0   layout (0 = 16; also 6/8/12 chips)
 ⌘/Ctrl+Enter     launch pane
 ⌘/Ctrl+S         save template
 ⌘/Ctrl+[ ]       prev/next session
 ⌘/Ctrl+Shift+T   cycle theme
+⌘/Ctrl+F         search focused terminal
 ?                toggle this help`}
           </pre>
         )}
@@ -607,7 +618,7 @@ export function App() {
             cards={cards}
             agents={agents}
             busy={busy || health !== "ok"}
-            onCreate={(t, a) => void createCard(t, a)}
+            onCreate={(t, a, body) => void createCard(t, a, body)}
             onMove={(id, col) => void moveCard(id, col)}
             onDispatch={(id) => void dispatchCard(id)}
             onDelete={(id) => void deleteCard(id)}
@@ -639,6 +650,19 @@ export function App() {
               key={session?.id ?? `empty-${i}`}
               className={session && session.id === activeId ? "pane focused" : "pane"}
               onClick={() => session && setActiveId(session.id)}
+              onDragOver={(e) => {
+                if ([...e.dataTransfer.types].includes("application/x-agentgrid-skill")) {
+                  e.preventDefault();
+                  e.currentTarget.classList.add("skill-drop-hover");
+                }
+              }}
+              onDragLeave={(e) => e.currentTarget.classList.remove("skill-drop-hover")}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove("skill-drop-hover");
+                const skillId = e.dataTransfer.getData("application/x-agentgrid-skill");
+                if (skillId && session) void applySkillToSession(skillId, session.id);
+              }}
             >
               <header className="pane-bar">
                 <span>{session ? session.title : `Empty slot ${i + 1}`}</span>
