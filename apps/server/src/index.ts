@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import {
   DEFAULT_SERVER_PORT,
@@ -45,6 +46,15 @@ export async function buildApp(options?: {
   const skills = options?.skillStore ?? new SkillStore();
   const fsRoots = options?.fsRoots ?? defaultRoots();
 
+  // Desktop (Tauri) loads static UI assets and calls 127.0.0.1:4318 directly.
+  await app.register(cors, {
+    origin: [
+      /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+      /^https?:\/\/localhost(:\d+)?$/,
+      /^https?:\/\/tauri\.localhost$/,
+      "tauri://localhost",
+    ],
+  });
   await app.register(websocket);
 
   app.get("/api/health", async () => ({

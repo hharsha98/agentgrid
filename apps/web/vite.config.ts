@@ -4,6 +4,9 @@ import { DEFAULT_SERVER_PORT, DEFAULT_WEB_PORT } from "../../packages/shared/src
 
 export default defineConfig({
   plugins: [react()],
+  // Relative asset URLs so the Tauri packaged app can load the built UI.
+  base: "./",
+  clearScreen: false,
   server: {
     port: DEFAULT_WEB_PORT,
     strictPort: true,

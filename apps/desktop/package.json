@@ -1,0 +1,19 @@
+{
+  "name": "@agentgrid/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tauri desktop shell for agentgrid",
+  "scripts": {
+    "dev": "tauri dev",
+    "tauri": "tauri",
+    "build": "node ./scripts/check-config.mjs",
+    "tauri:build": "tauri build",
+    "typecheck": "node ./scripts/check-config.mjs",
+    "test": "node ./scripts/check-config.mjs",
+    "lint": "node ./scripts/check-config.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

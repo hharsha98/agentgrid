@@ -6,17 +6,13 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import type { ClientMessage, ServerMessage, SessionInfo } from "@agentgrid/shared";
 import { CommandBlockTracker, type CommandBlock } from "./commandBlocks";
+import { wsSessionUrl } from "../lib/http";
 import "@xterm/xterm/css/xterm.css";
 
 interface Props {
   sessionId: string;
   onReady?: (session: SessionInfo) => void;
   onExit?: (code: number | null) => void;
-}
-
-function wsUrl(sessionId: string): string {
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/api/sessions/${sessionId}/ws`;
 }
 
 export function Terminal({ sessionId, onReady, onExit }: Props) {
@@ -79,7 +75,7 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
     fitRef.current = fit;
     fit.fit();
 
-    const ws = new WebSocket(wsUrl(sessionId));
+    const ws = new WebSocket(wsSessionUrl(sessionId));
     socketRef.current = ws;
 
     ws.onmessage = (ev) => {

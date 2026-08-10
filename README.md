@@ -28,6 +28,7 @@ Do not merge the two repos.
 - Files view (safe browse/edit under Projects/home) + shared Memory notes + MCP
 - Swarm missions (coordinator / builder / scout / reviewer) with file ownership claims
 - Skills library — apply bundled prompts (security-review, commit-and-push, seo-audit) into a pane
+- Optional **Tauri desktop** shell (`pnpm desktop:dev`) wrapping the same UI
 - Session list survives browser refresh (server keeps PTYs alive until you kill them)
 
 ## Quickstart
@@ -45,6 +46,12 @@ Open **http://localhost:5318**
 - Server listens on **http://127.0.0.1:4318**
 - Web proxies `/api` (including WebSockets) to the server
 
+Desktop shell (needs Rust via `rustup`):
+
+```bash
+pnpm desktop:dev
+```
+
 ## Roadmap
 
 - [x] **Phase 0 — Foundation**: pnpm workspace, CI, shared protocol, Fastify + React
@@ -59,7 +66,7 @@ Open **http://localhost:5318**
 - [x] **Phase 8 — Shared memory / MCP** (`~/.agentgrid/memory` + `@agentgrid/mcp` STDIO server)
 - [x] **Phase 9 — Swarm roles + file ownership** (coordinator/builder/scout/reviewer)
 - [x] **Phase 10 — Skills** (security-review, commit-and-push, seo-audit)
-- [ ] **Phase 11 — Desktop app (Tauri)**
+- [x] **Phase 11 — Desktop app (Tauri)** (`pnpm desktop:dev`)
 
 ## Project layout
 
@@ -67,7 +74,8 @@ Open **http://localhost:5318**
 agentgrid/
 ├── apps/
 │   ├── server/    # Fastify + node-pty (port 4318)
-│   └── web/       # React + Vite + xterm (port 5318)
+│   ├── web/       # React + Vite + xterm (port 5318)
+│   └── desktop/   # Tauri native shell around the web UI
 └── packages/
     ├── shared/    # Types + agent specs shared by both sides
     └── mcp/       # STDIO MCP for shared memory

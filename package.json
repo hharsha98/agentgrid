@@ -7,6 +7,8 @@
   "packageManager": "pnpm@11.15.1",
   "scripts": {
     "dev": "pnpm -r --parallel --filter @agentgrid/server --filter @agentgrid/web run dev",
+    "desktop:dev": "pnpm --filter @agentgrid/desktop dev",
+    "desktop:build": "pnpm --filter @agentgrid/desktop tauri:build",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",

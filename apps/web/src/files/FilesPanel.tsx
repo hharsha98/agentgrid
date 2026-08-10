@@ -1,24 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FsEntry, FsFileContent } from "@agentgrid/shared";
+import { api } from "../lib/http";
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: string };
-      detail = body.error ?? detail;
-    } catch {
-      // ignore
-    }
-    throw new Error(detail);
-  }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
-}
 
 interface Props {
   initialRoot?: string;
