@@ -654,3 +654,131 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.swarm-panel,
+.skills-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  height: 100%;
+  min-height: 0;
+}
+
+.swarm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.swarm-form input,
+.swarm-form textarea,
+.swarm-claim input {
+  background: var(--bg-pane);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.55rem 0.6rem;
+  font: inherit;
+}
+
+.swarm-columns {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 0.6rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.swarm-list,
+.swarm-detail {
+  border: 1px solid var(--line);
+  background: var(--bg-pane);
+  padding: 0.55rem;
+  overflow: auto;
+  min-height: 0;
+}
+
+.swarm-detail h2 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.swarm-mission {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.swarm-members {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+
+.swarm-member {
+  border: 1px solid var(--line);
+  padding: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+}
+
+.ownership-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.swarm-claim {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.6rem;
+  overflow: auto;
+}
+
+.skill-card {
+  border: 1px solid var(--line);
+  background: var(--bg-pane);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.skill-card h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+
+.skill-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  flex: 1;
+}
+
+.skills-msg {
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 900px) {
+  .swarm-columns {
+    grid-template-columns: 1fr;
+  }
+}

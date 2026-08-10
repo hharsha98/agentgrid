@@ -8,6 +8,8 @@ import type { SessionManager } from "./pty/session-manager.js";
 import { WorkspaceStore } from "./workspaces/store.js";
 import { KanbanStore } from "./kanban/store.js";
 import { MemoryStore } from "./memory/store.js";
+import { SwarmStore } from "./swarm/store.js";
+import { SkillStore } from "./skills/store.js";
 
 describe("HTTP API", () => {
   let app: FastifyInstance;
@@ -20,6 +22,8 @@ describe("HTTP API", () => {
       workspaceStore: new WorkspaceStore(join(tmpDir, "workspaces.json")),
       kanbanStore: new KanbanStore(join(tmpDir, "kanban.json")),
       memoryStore: new MemoryStore(join(tmpDir, "memory")),
+      swarmStore: new SwarmStore(join(tmpDir, "swarms.json")),
+      skillStore: new SkillStore(),
       fsRoots: [tmpDir],
     });
     app = built.app;
@@ -159,6 +163,39 @@ describe("HTTP API", () => {
     const list = await app.inject({ method: "GET", url: "/api/memory" });
     const body = list.json() as { notes: { title: string }[] };
     expect(body.notes.some((n) => n.title === "Decisions")).toBe(true);
+  });
+
+
+  it("lists bundled skills", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/skills" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { skills: { id: string }[] };
+    expect(body.skills.some((s) => s.id === "security-review")).toBe(true);
+  });
+
+  it("launches a swarm with fallbacks", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/swarm",
+      payload: {
+        name: "Demo",
+        mission: "Explore and report",
+        roles: {
+          coordinator: "shell",
+          builder: "shell",
+          scout: "shell",
+          reviewer: "shell",
+        },
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json() as {
+      swarm: { members: { role: string; sessionId?: string }[] };
+      sessions: { id: string }[];
+    };
+    expect(body.swarm.members).toHaveLength(4);
+    expect(body.sessions).toHaveLength(4);
+    for (const s of body.sessions) sessions.dispose(s.id);
   });
 
 });

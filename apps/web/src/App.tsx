@@ -12,6 +12,8 @@ import { Terminal } from "./term/Terminal";
 import { KanbanBoard } from "./board/KanbanBoard";
 import { FilesPanel } from "./files/FilesPanel";
 import { MemoryPanel } from "./files/MemoryPanel";
+import { SwarmPanel } from "./swarm/SwarmPanel";
+import { SkillsPanel } from "./swarm/SkillsPanel";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -76,7 +78,7 @@ export function App() {
   const [layout, setLayout] = useState<LayoutPreset>(saved.layout ?? 1);
   const [workspaceName, setWorkspaceName] = useState(saved.workspaceName ?? "default");
   const [showHelp, setShowHelp] = useState(false);
-  const [view, setView] = useState<"grid" | "board" | "files" | "memory">("grid");
+  const [view, setView] = useState<"grid" | "board" | "files" | "memory" | "swarm" | "skills">("grid");
   const [cards, setCards] = useState<KanbanCard[]>([]);
 
   useEffect(() => {
@@ -379,6 +381,8 @@ export function App() {
               ["board", "Board"],
               ["files", "Files"],
               ["memory", "Memory"],
+              ["swarm", "Swarm"],
+              ["skills", "Skills"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -597,6 +601,23 @@ export function App() {
           <FilesPanel initialRoot={cwd.trim() || undefined} />
         ) : view === "memory" ? (
           <MemoryPanel />
+        ) : view === "swarm" ? (
+          <SwarmPanel
+            busy={busy || health !== "ok"}
+            cwd={cwd}
+            onLaunched={(swarm) => {
+              setWorkspaceName(swarm.name);
+              setLayout(4);
+              setView("grid");
+              void refresh();
+            }}
+          />
+        ) : view === "skills" ? (
+          <SkillsPanel
+            sessions={sessions}
+            activeSessionId={activeId}
+            busy={busy || health !== "ok"}
+          />
         ) : (
           slots.map((session, i) => (
             <section

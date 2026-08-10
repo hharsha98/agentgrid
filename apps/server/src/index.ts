@@ -9,6 +9,9 @@ import {
   type DispatchKanbanCardRequest,
   type UpsertKanbanCardRequest,
   type UpsertWorkspaceRequest,
+  type ApplySkillRequest,
+  type ClaimFileRequest,
+  type CreateSwarmRequest,
 } from "@agentgrid/shared";
 import { detectAgents } from "./pty/agents.js";
 import { AgentMissingError, SessionManager } from "./pty/session-manager.js";
@@ -22,11 +25,15 @@ import {
   writeFile as writeFsFile,
 } from "./fs/safe-fs.js";
 import { MemoryStore } from "./memory/store.js";
+import { rolePrompt, SwarmStore } from "./swarm/store.js";
+import { SkillStore } from "./skills/store.js";
 
 export async function buildApp(options?: {
   workspaceStore?: WorkspaceStore;
   kanbanStore?: KanbanStore;
   memoryStore?: MemoryStore;
+  swarmStore?: SwarmStore;
+  skillStore?: SkillStore;
   fsRoots?: string[];
 }) {
   const app = Fastify({ logger: true });
@@ -34,6 +41,8 @@ export async function buildApp(options?: {
   const workspaces = options?.workspaceStore ?? new WorkspaceStore();
   const kanban = options?.kanbanStore ?? new KanbanStore();
   const memory = options?.memoryStore ?? new MemoryStore();
+  const swarms = options?.swarmStore ?? new SwarmStore();
+  const skills = options?.skillStore ?? new SkillStore();
   const fsRoots = options?.fsRoots ?? defaultRoots();
 
   await app.register(websocket);
@@ -281,6 +290,102 @@ export async function buildApp(options?: {
     return reply.code(204).send();
   });
 
+
+  app.get("/api/skills", async () => ({ skills: skills.list() }));
+
+  app.post<{ Params: { id: string }; Body: ApplySkillRequest }>(
+    "/api/skills/:id/apply",
+    async (req, reply) => {
+      const skill = skills.get(req.params.id);
+      if (!skill) return reply.code(404).send({ error: "skill not found" });
+      const sessionId = req.body?.sessionId;
+      if (!sessionId || !sessions.get(sessionId)) {
+        return reply.code(404).send({ error: "session not found" });
+      }
+      const ok = sessions.write(sessionId, skill.prompt.endsWith("\n") ? skill.prompt : `${skill.prompt}\n`);
+      if (!ok) return reply.code(500).send({ error: "failed to write to session" });
+      return { ok: true, skill: { id: skill.id, name: skill.name } };
+    },
+  );
+
+  app.get("/api/swarm", async () => ({ swarms: swarms.list() }));
+
+  app.get<{ Params: { id: string } }>("/api/swarm/:id", async (req, reply) => {
+    const swarm = swarms.get(req.params.id);
+    if (!swarm) return reply.code(404).send({ error: "swarm not found" });
+    return { swarm };
+  });
+
+  app.post<{ Body: CreateSwarmRequest }>("/api/swarm", async (req, reply) => {
+    try {
+      let draft = swarms.createDraft(req.body ?? ({} as CreateSwarmRequest));
+      draft = swarms.save(draft);
+      const sessionByRole: Record<string, string> = {};
+      const createdSessions = [];
+      for (const member of draft.members) {
+        const agentId = member.agentId;
+        try {
+          const session = sessions.create({
+            agentId,
+            cwd: draft.cwd,
+            title: member.title,
+            initialInput: rolePrompt(member.role, draft.mission, draft.name),
+          });
+          sessionByRole[member.role] = session.id;
+          createdSessions.push(session);
+        } catch (err) {
+          if (err instanceof AgentMissingError && agentId !== "shell") {
+            const session = sessions.create({
+              agentId: "shell",
+              cwd: draft.cwd,
+              title: `${member.title} (shell fallback)`,
+              initialInput: rolePrompt(member.role, draft.mission, draft.name),
+            });
+            sessionByRole[member.role] = session.id;
+            createdSessions.push(session);
+          } else {
+            for (const s of createdSessions) sessions.dispose(s.id);
+            throw err;
+          }
+        }
+      }
+      const swarm = swarms.attachSessions(draft.id, sessionByRole);
+      return reply.code(201).send({ swarm, sessions: createdSessions });
+    } catch (err) {
+      if (err instanceof AgentMissingError) {
+        return reply.code(409).send({
+          error: err.message,
+          agentId: err.agentId,
+          installHint: err.installHint,
+        });
+      }
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post<{ Params: { id: string }; Body: ClaimFileRequest }>(
+    "/api/swarm/:id/claim",
+    async (req, reply) => {
+      try {
+        const swarm = swarms.claim(req.params.id, req.body ?? ({} as ClaimFileRequest));
+        return { swarm };
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { status?: "running" | "done" | "failed" } }>(
+    "/api/swarm/:id/status",
+    async (req, reply) => {
+      const status = req.body?.status;
+      if (!status) return reply.code(400).send({ error: "status required" });
+      const swarm = swarms.setStatus(req.params.id, status);
+      if (!swarm) return reply.code(404).send({ error: "swarm not found" });
+      return { swarm };
+    },
+  );
+
   app.get<{ Params: { id: string } }>("/api/sessions/:id/ws", { websocket: true }, (socket, req) => {
     const id = req.params.id;
     const info = sessions.get(id);
@@ -337,7 +442,7 @@ export async function buildApp(options?: {
     sessions.disposeAll();
   });
 
-  return { app, sessions, workspaces, kanban, memory, fsRoots };
+  return { app, sessions, workspaces, kanban, memory, swarms, skills, fsRoots };
 }
 
 async function main() {

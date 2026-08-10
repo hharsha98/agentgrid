@@ -25,6 +25,9 @@ Do not merge the two repos.
 - Keyboard shortcuts (⌘/Ctrl+1/2/4, Enter, S, [ ])
 - Warp-style command blocks for shell panes (OSC 133)
 - Kanban board with Dispatch → agent session
+- Files view (safe browse/edit under Projects/home) + shared Memory notes + MCP
+- Swarm missions (coordinator / builder / scout / reviewer) with file ownership claims
+- Skills library — apply bundled prompts (security-review, commit-and-push, seo-audit) into a pane
 - Session list survives browser refresh (server keeps PTYs alive until you kill them)
 
 ## Quickstart
@@ -54,8 +57,8 @@ Open **http://localhost:5318**
 - [x] **Phase 6 — File tree + light editor** (Files view; text files under allowed roots)
 - [x] **Phase 7 — Kanban board** that dispatches agents into panes
 - [x] **Phase 8 — Shared memory / MCP** (`~/.agentgrid/memory` + `@agentgrid/mcp` STDIO server)
-- [ ] **Phase 9 — Swarm roles + file ownership**
-- [ ] **Phase 10 — Skills**
+- [x] **Phase 9 — Swarm roles + file ownership** (coordinator/builder/scout/reviewer)
+- [x] **Phase 10 — Skills** (security-review, commit-and-push, seo-audit)
 - [ ] **Phase 11 — Desktop app (Tauri)**
 
 ## Project layout
@@ -66,7 +69,8 @@ agentgrid/
 │   ├── server/    # Fastify + node-pty (port 4318)
 │   └── web/       # React + Vite + xterm (port 5318)
 └── packages/
-    └── shared/    # Types + agent specs shared by both sides
+    ├── shared/    # Types + agent specs shared by both sides
+    └── mcp/       # STDIO MCP for shared memory
 ```
 
 ## License

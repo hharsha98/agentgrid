@@ -170,3 +170,57 @@ export interface MemoryNote {
   content: string;
   updatedAt: string;
 }
+
+
+export type SwarmRole = "coordinator" | "builder" | "scout" | "reviewer";
+
+export interface SwarmMember {
+  role: SwarmRole;
+  agentId: AgentId;
+  sessionId?: string;
+  title: string;
+}
+
+export interface FileOwnership {
+  path: string;
+  role: SwarmRole;
+  sessionId: string;
+  claimedAt: string;
+}
+
+export interface SwarmMission {
+  id: string;
+  name: string;
+  mission: string;
+  cwd?: string;
+  status: "running" | "done" | "failed";
+  members: SwarmMember[];
+  ownership: FileOwnership[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSwarmRequest {
+  name: string;
+  mission: string;
+  cwd?: string;
+  /** Override agent per role; defaults use claude for most, shell optional. */
+  roles?: Partial<Record<SwarmRole, AgentId>>;
+}
+
+export interface ClaimFileRequest {
+  path: string;
+  role: SwarmRole;
+  sessionId: string;
+}
+
+export interface SkillSpec {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+}
+
+export interface ApplySkillRequest {
+  sessionId: string;
+}
