@@ -211,6 +211,7 @@ export interface SwarmMission {
   members: SwarmMember[];
   ownership: FileOwnership[];
   mailbox: SwarmMailMessage[];
+  plan: SwarmPlanNode[];
   createdAt: string;
   updatedAt: string;
 }
@@ -243,4 +244,32 @@ export interface SkillSpec {
 
 export interface ApplySkillRequest {
   sessionId: string;
+}
+
+
+export interface PromptSpec {
+  id: string;
+  name: string;
+  body: string;
+  updatedAt: string;
+}
+
+export interface UpsertPromptRequest {
+  id?: string;
+  name: string;
+  body: string;
+}
+
+export interface ApplyPromptRequest {
+  sessionId: string;
+}
+
+export type SwarmPlanStatus = "pending" | "doing" | "done";
+
+export interface SwarmPlanNode {
+  id: string;
+  title: string;
+  role?: SwarmRole;
+  status: SwarmPlanStatus;
+  children?: SwarmPlanNode[];
 }

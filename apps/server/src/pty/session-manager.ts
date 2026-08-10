@@ -118,6 +118,7 @@ export class SessionManager extends EventEmitter {
 
     term.onExit(({ exitCode }) => {
       for (const fn of exitListeners) fn(exitCode);
+      this.emit("session-exit", { sessionId: id, code: exitCode ?? null });
       // Keep session metadata + scrollback until explicit dispose,
       // so a reconnect can still show the last output.
       try {

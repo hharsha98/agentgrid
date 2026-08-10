@@ -14,6 +14,13 @@ import { FilesPanel } from "./files/FilesPanel";
 import { MemoryPanel } from "./files/MemoryPanel";
 import { SwarmPanel } from "./swarm/SwarmPanel";
 import { SkillsPanel } from "./swarm/SkillsPanel";
+import { PromptsPanel } from "./prompts/PromptsPanel";
+import { SplitLayout } from "./grid/SplitLayout";
+import {
+  defaultTree,
+  fillEmptyLeaves,
+  type PaneNode,
+} from "./grid/splitTree";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { api } from "./lib/http";
 import {
@@ -28,9 +35,13 @@ import {
 
 const STORAGE_KEY = "agentgrid.workspace.v1";
 
+type LayoutMode = "preset" | "free";
+
 interface SavedWorkspace {
   workspaceName: string;
   layout: LayoutPreset;
+  layoutMode?: LayoutMode;
+  splitTree?: PaneNode;
   cwd: string;
   agentId: AgentId;
 }
@@ -62,16 +73,34 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [layout, setLayout] = useState<LayoutPreset>(saved.layout ?? 1);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(saved.layoutMode ?? "preset");
+  const [splitTree, setSplitTree] = useState<PaneNode>(
+    () => saved.splitTree ?? defaultTree([]),
+  );
   const [workspaceName, setWorkspaceName] = useState(saved.workspaceName ?? "default");
   const [showHelp, setShowHelp] = useState(false);
-  const [view, setView] = useState<"grid" | "board" | "files" | "memory" | "swarm" | "skills">("grid");
+  const [view, setView] = useState<
+    "grid" | "board" | "files" | "memory" | "swarm" | "skills" | "prompts"
+  >("grid");
   const [theme, setTheme] = useState<ThemeId>(() => loadTheme());
   const [cards, setCards] = useState<KanbanCard[]>([]);
 
   useEffect(() => {
-    const payload: SavedWorkspace = { workspaceName, layout, cwd, agentId };
+    const payload: SavedWorkspace = {
+      workspaceName,
+      layout,
+      layoutMode,
+      splitTree,
+      cwd,
+      agentId,
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [workspaceName, layout, cwd, agentId]);
+  }, [workspaceName, layout, layoutMode, splitTree, cwd, agentId]);
+
+  useEffect(() => {
+    if (layoutMode !== "free") return;
+    setSplitTree((prev) => fillEmptyLeaves(prev, sessions.map((s) => s.id)));
+  }, [sessions, layoutMode]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -162,6 +191,7 @@ export function App() {
         );
       }
       setWorkspaceName(name);
+      setLayoutMode("preset");
       setLayout(ids.length <= 1 ? 1 : ids.length <= 2 ? 2 : 4);
       const created: SessionInfo[] = [];
       for (const id of ids) {
@@ -324,7 +354,7 @@ export function App() {
       setSessions((prev) => [...prev, res.session]);
       setActiveId(res.session.id);
       setView("grid");
-      setLayout(2);
+      setPresetLayout(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -344,9 +374,25 @@ export function App() {
     }
   };
 
+  const setPresetLayout = useCallback((n: LayoutPreset) => {
+    setLayoutMode("preset");
+    setLayout(n);
+  }, []);
+
+  const enableFreeLayout = useCallback(() => {
+    setLayoutMode("free");
+    setSplitTree((prev) => {
+      // Seed from current sessions when switching into free mode from presets.
+      if (prev.type === "leaf" && !prev.sessionId && sessions.length > 0) {
+        return defaultTree(sessions.map((s) => s.id));
+      }
+      return fillEmptyLeaves(prev, sessions.map((s) => s.id));
+    });
+  }, [sessions]);
+
   const shortcutHandlers = useMemo(
     () => ({
-      onLayout: setLayout,
+      onLayout: setPresetLayout,
       onLaunchPane: () => {
         void createSession();
       },
@@ -358,13 +404,13 @@ export function App() {
       onFocusPrev: () => focusRelative(-1),
       onCycleTheme: () => setTheme((t) => cycleTheme(t)),
     }),
-    [createSession, saveWorkspace, focusRelative],
+    [createSession, saveWorkspace, focusRelative, setPresetLayout],
   );
 
   useKeyboardShortcuts(shortcutHandlers);
 
   const slots = splitIds(sessions, layout);
-  const gridClass = `grid-${layout}`;
+  const gridClass = layoutMode === "free" ? "grid-free" : `grid-${layout}`;
 
   return (
     <div className="app-shell">
@@ -391,6 +437,7 @@ export function App() {
               ["memory", "Memory"],
               ["swarm", "Swarm"],
               ["skills", "Skills"],
+              ["prompts", "Prompts"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -416,17 +463,38 @@ export function App() {
         <label className="field">
           <span>Layout</span>
           <div className="layout-row">
-            {([1, 2, 4, 6, 8, 12, 16] as LayoutPreset[]).map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={layout === n ? "chip active" : "chip"}
-                onClick={() => setLayout(n)}
-              >
-                {n}
-              </button>
-            ))}
+            <button
+              type="button"
+              className={layoutMode === "preset" ? "chip active" : "chip"}
+              onClick={() => setLayoutMode("preset")}
+            >
+              Preset
+            </button>
+            <button
+              type="button"
+              className={layoutMode === "free" ? "chip active" : "chip"}
+              onClick={() => enableFreeLayout()}
+            >
+              Free
+            </button>
           </div>
+          {layoutMode === "preset" && (
+            <div className="layout-row">
+              {([1, 2, 4, 6, 8, 12, 16] as LayoutPreset[]).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={layout === n ? "chip active" : "chip"}
+                  onClick={() => setPresetLayout(n)}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          )}
+          {layoutMode === "free" && (
+            <p className="layout-hint">H/V split buttons on each pane · drag the handle to resize</p>
+          )}
         </label>
 
         <label className="field">
@@ -593,7 +661,8 @@ export function App() {
         </button>
         {showHelp && (
           <pre className="help">
-{`⌘/Ctrl+1|2|4|0   layout (0 = 16; also 6/8/12 chips)
+{`⌘/Ctrl+1|2|4|0   preset layout (0 = 16)
+Free layout      H/V chips on panes + drag handles
 ⌘/Ctrl+Enter     launch pane
 ⌘/Ctrl+S         save template
 ⌘/Ctrl+[ ]       prev/next session
@@ -633,7 +702,7 @@ export function App() {
             cwd={cwd}
             onLaunched={(swarm) => {
               setWorkspaceName(swarm.name);
-              setLayout(4);
+              setPresetLayout(4);
               setView("grid");
               void refresh();
             }}
@@ -643,6 +712,21 @@ export function App() {
             sessions={sessions}
             activeSessionId={activeId}
             busy={busy || health !== "ok"}
+          />
+        ) : view === "prompts" ? (
+          <PromptsPanel
+            sessions={sessions}
+            activeSessionId={activeId}
+            busy={busy || health !== "ok"}
+          />
+        ) : layoutMode === "free" ? (
+          <SplitLayout
+            tree={splitTree}
+            sessions={sessions}
+            activeId={activeId}
+            onChange={setSplitTree}
+            onFocus={setActiveId}
+            onSkillDrop={(skillId, sessionId) => void applySkillToSession(skillId, sessionId)}
           />
         ) : (
           slots.map((session, i) => (

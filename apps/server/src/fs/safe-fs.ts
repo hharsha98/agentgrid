@@ -117,3 +117,11 @@ export function ensureDir(path: string): void {
 }
 
 export { basename };
+
+
+export function statFile(root: string, relPath: string): { path: string; mtimeMs: number; size: number } {
+  const abs = resolveUnderRoot(root, relPath);
+  const st = statSync(abs);
+  if (!st.isFile()) throw new Error("not a file");
+  return { path: relative(real(root), abs) || basename(abs), mtimeMs: st.mtimeMs, size: st.size };
+}

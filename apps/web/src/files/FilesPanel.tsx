@@ -44,11 +44,31 @@ export function FilesPanel({ initialRoot }: Props) {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("");
   const [editorTheme, setEditorTheme] = useState(monacoTheme);
+  const [mtimeMs, setMtimeMs] = useState<number | null>(null);
+  const [stale, setStale] = useState(false);
 
   const language = useMemo(
     () => (file ? languageForPath(file.path) : "plaintext"),
     [file],
   );
+
+  useEffect(() => {
+    if (!root || !file || dirty) return;
+    const tick = async () => {
+      try {
+        const st = await api<{ stat: { mtimeMs: number } }>(
+          `/api/fs/stat?root=${encodeURIComponent(root)}&path=${encodeURIComponent(file.path)}`,
+        );
+        if (mtimeMs != null && st.stat.mtimeMs > mtimeMs + 1) {
+          setStale(true);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    const id = window.setInterval(() => void tick(), 2000);
+    return () => window.clearInterval(id);
+  }, [root, file, dirty, mtimeMs]);
 
   useEffect(() => {
     const sync = () => setEditorTheme(monacoTheme());
@@ -99,6 +119,15 @@ export function FilesPanel({ initialRoot }: Props) {
       setFile(res.file);
       setDraft(res.file.content);
       setDirty(false);
+      setStale(false);
+      try {
+        const st = await api<{ stat: { mtimeMs: number } }>(
+          `/api/fs/stat?root=${encodeURIComponent(root)}&path=${encodeURIComponent(entry.path)}`,
+        );
+        setMtimeMs(st.stat.mtimeMs);
+      } catch {
+        setMtimeMs(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -192,6 +221,24 @@ export function FilesPanel({ initialRoot }: Props) {
                 {file.path}
                 {file.truncated ? " (truncated)" : ""}
               </div>
+              {stale && (
+                <div className="files-stale">
+                  File changed on disk.{" "}
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      void openEntry({
+                        name: file.path.split("/").pop() || file.path,
+                        path: file.path,
+                        type: "file",
+                      });
+                    }}
+                  >
+                    Reload
+                  </button>
+                </div>
+              )}
               <div className="files-monaco">
                 <Editor
                   height="100%"

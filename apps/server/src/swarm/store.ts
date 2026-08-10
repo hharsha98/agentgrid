@@ -12,6 +12,7 @@ import {
   type SwarmMailMessage,
   type SwarmMember,
   type SwarmMission,
+  type SwarmPlanNode,
   type SwarmRole,
 } from "@agentgrid/shared";
 
@@ -68,6 +69,7 @@ function sanitize(raw: unknown): SwarmMission | null {
   if (o.status !== "running" && o.status !== "done" && o.status !== "failed") return null;
   if (!Array.isArray(o.members) || !Array.isArray(o.ownership)) return null;
   const mailbox = Array.isArray(o.mailbox) ? (o.mailbox as SwarmMailMessage[]) : [];
+  const plan = Array.isArray(o.plan) ? (o.plan as SwarmPlanNode[]) : [];
   return {
     id: o.id,
     name: o.name,
@@ -77,6 +79,7 @@ function sanitize(raw: unknown): SwarmMission | null {
     members: o.members as SwarmMember[],
     ownership: o.ownership as FileOwnership[],
     mailbox,
+    plan,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : new Date().toISOString(),
     updatedAt: typeof o.updatedAt === "string" ? o.updatedAt : new Date().toISOString(),
   };
@@ -133,6 +136,12 @@ export class SwarmStore {
       members,
       ownership: [],
       mailbox: [],
+      plan: ROLES.map((role) => ({
+        id: randomUUID(),
+        title: `${role}: contribute to mission`,
+        role,
+        status: "pending" as const,
+      })),
       createdAt: now,
       updatedAt: now,
     };
@@ -188,6 +197,22 @@ export class SwarmStore {
     const mission = this.get(id);
     if (!mission) return undefined;
     return this.save({ ...mission, status });
+  }
+
+  setPlanNodeStatus(
+    id: string,
+    nodeId: string,
+    status: SwarmPlanNode["status"],
+  ): SwarmMission {
+    const mission = this.get(id);
+    if (!mission) throw new Error("swarm not found");
+    const walk = (nodes: SwarmPlanNode[]): SwarmPlanNode[] =>
+      nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, status }
+          : { ...n, children: n.children ? walk(n.children) : undefined },
+      );
+    return this.save({ ...mission, plan: walk(mission.plan ?? []) });
   }
 
   postMail(id: string, input: PostSwarmMailRequest): SwarmMission {

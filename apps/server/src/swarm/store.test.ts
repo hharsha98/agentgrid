@@ -60,6 +60,16 @@ describe("SwarmStore", () => {
     expect(next.mailbox).toHaveLength(1);
     expect(next.mailbox[0]?.body).toBe("hello team");
   });
+
+  it("updates plan node status", () => {
+    const store = fresh();
+    const draft = store.createDraft({ name: "Plan", mission: "Ship" });
+    store.save(draft);
+    expect(draft.plan.length).toBe(4);
+    const nodeId = draft.plan[0]!.id;
+    const next = store.setPlanNodeStatus(draft.id, nodeId, "doing");
+    expect(next.plan.find((n) => n.id === nodeId)?.status).toBe("doing");
+  });
 });
 
 describe("rolePrompt", () => {

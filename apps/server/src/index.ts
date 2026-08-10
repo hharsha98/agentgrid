@@ -14,6 +14,8 @@ import {
   type ClaimFileRequest,
   type CreateSwarmRequest,
   type PostSwarmMailRequest,
+  type UpsertPromptRequest,
+  type ApplyPromptRequest,
 } from "@agentgrid/shared";
 import { detectAgents } from "./pty/agents.js";
 import { AgentMissingError, SessionManager } from "./pty/session-manager.js";
@@ -25,10 +27,12 @@ import {
   PathEscapeError,
   readFile as readFsFile,
   writeFile as writeFsFile,
+  statFile as statFsFile,
 } from "./fs/safe-fs.js";
 import { MemoryStore } from "./memory/store.js";
 import { rolePrompt, SwarmStore } from "./swarm/store.js";
 import { SkillStore } from "./skills/store.js";
+import { PromptStore } from "./prompts/store.js";
 
 export async function buildApp(options?: {
   workspaceStore?: WorkspaceStore;
@@ -36,6 +40,7 @@ export async function buildApp(options?: {
   memoryStore?: MemoryStore;
   swarmStore?: SwarmStore;
   skillStore?: SkillStore;
+  promptStore?: PromptStore;
   fsRoots?: string[];
 }) {
   const app = Fastify({ logger: true });
@@ -45,7 +50,17 @@ export async function buildApp(options?: {
   const memory = options?.memoryStore ?? new MemoryStore();
   const swarms = options?.swarmStore ?? new SwarmStore();
   const skills = options?.skillStore ?? new SkillStore();
+  const prompts = options?.promptStore ?? new PromptStore();
   const fsRoots = options?.fsRoots ?? defaultRoots();
+
+  // When a dispatched agent session exits, advance its kanban card.
+  sessions.on("session-exit", (ev: { sessionId: string; code: number | null }) => {
+    const card = kanban.list().find((c) => c.sessionId === ev.sessionId);
+    if (!card || card.column !== "in_progress") return;
+    kanban.update(card.id, {
+      column: ev.code === 0 ? "done" : "in_review",
+    });
+  });
 
   // Desktop (Tauri) loads static UI assets and calls 127.0.0.1:4318 directly.
   await app.register(cors, {
@@ -268,6 +283,22 @@ export async function buildApp(options?: {
     },
   );
 
+  app.get<{ Querystring: { root?: string; path?: string } }>(
+    "/api/fs/stat",
+    async (req, reply) => {
+      const root = req.query.root || fsRoots[0];
+      const rel = req.query.path;
+      if (!root || !fsRoots.includes(root) || !rel) {
+        return reply.code(400).send({ error: "root and path required" });
+      }
+      try {
+        return { stat: statFsFile(root, rel) };
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
   app.get("/api/memory", async () => ({
     notes: memory.list(),
     directory: memory.directory,
@@ -303,6 +334,37 @@ export async function buildApp(options?: {
 
 
   app.get("/api/skills", async () => ({ skills: skills.list() }));
+
+  app.get("/api/prompts", async () => ({ prompts: prompts.list() }));
+
+  app.post<{ Body: UpsertPromptRequest }>("/api/prompts", async (req, reply) => {
+    try {
+      const prompt = prompts.upsert(req.body ?? ({} as UpsertPromptRequest));
+      return reply.code(201).send({ prompt });
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/prompts/:id", async (req, reply) => {
+    const ok = prompts.remove(req.params.id);
+    if (!ok) return reply.code(404).send({ error: "prompt not found" });
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { id: string }; Body: ApplyPromptRequest }>(
+    "/api/prompts/:id/apply",
+    async (req, reply) => {
+      const prompt = prompts.get(req.params.id);
+      if (!prompt) return reply.code(404).send({ error: "prompt not found" });
+      const sessionId = req.body?.sessionId;
+      if (!sessionId) return reply.code(400).send({ error: "sessionId required" });
+      if (!sessions.get(sessionId)) return reply.code(404).send({ error: "session not found" });
+      const ok = sessions.write(sessionId, prompt.body.endsWith("\n") ? prompt.body : `${prompt.body}\n`);
+      if (!ok) return reply.code(500).send({ error: "failed to write to session" });
+      return { prompt, sessionId };
+    },
+  );
 
   app.post<{ Params: { id: string }; Body: ApplySkillRequest }>(
     "/api/skills/:id/apply",
@@ -396,6 +458,21 @@ export async function buildApp(options?: {
       return { swarm };
     },
   );
+
+  app.post<{
+    Params: { id: string };
+    Body: { nodeId?: string; status?: "pending" | "doing" | "done" };
+  }>("/api/swarm/:id/plan", async (req, reply) => {
+    try {
+      const nodeId = req.body?.nodeId;
+      const status = req.body?.status;
+      if (!nodeId || !status) return reply.code(400).send({ error: "nodeId and status required" });
+      const swarm = swarms.setPlanNodeStatus(req.params.id, nodeId, status);
+      return { swarm };
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
 
   app.post<{ Params: { id: string }; Body: PostSwarmMailRequest }>(
     "/api/swarm/:id/mail",
