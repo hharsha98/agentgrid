@@ -1,0 +1,44 @@
+:root {
+  --bg: #0c1210;
+  --bg-elevated: #121a17;
+  --bg-pane: #0a0f0d;
+  --ink: #e8f0eb;
+  --muted: #8aa093;
+  --line: #1e2a24;
+  --accent: #3dcf8e;
+  --accent-dim: #1a5c3f;
+  --danger: #e86a5c;
+  --warn: #e0b35a;
+  --font-display: "Syne", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #143528 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #1a2430 0%, transparent 50%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}

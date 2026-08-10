@@ -1,0 +1,282 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100%;
+  min-height: 100vh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.1rem;
+  border-right: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg-elevated) 92%, transparent);
+  backdrop-filter: blur(8px);
+  overflow: auto;
+}
+
+.brand {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.brand-mark {
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--accent-dim);
+  background: linear-gradient(145deg, #1a5c3f, #0c1210);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.brand-sub {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.health {
+  font-size: 0.75rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.health-ok {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.health-down {
+  color: var(--danger);
+}
+
+.port-hint {
+  margin-left: 0.5rem;
+  opacity: 0.7;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.field input,
+.field select {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+  background: var(--bg-pane);
+  border: 1px solid var(--line);
+  padding: 0.55rem 0.6rem;
+}
+
+.layout-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.chip {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  padding: 0.4rem;
+}
+
+.chip.active {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent-dim) 55%, transparent);
+}
+
+.primary {
+  border: 0;
+  background: var(--accent);
+  color: #04140c;
+  font-weight: 600;
+  padding: 0.7rem 0.8rem;
+}
+
+.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.error {
+  white-space: pre-wrap;
+  color: var(--danger);
+  font-size: 0.75rem;
+  margin: 0;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--danger) 40%, transparent);
+  background: color-mix(in oklab, var(--danger) 10%, transparent);
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.section-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.session {
+  position: relative;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 0.55rem 1.8rem 0.55rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.session.active {
+  border-color: var(--accent);
+}
+
+.session-title {
+  font-size: 0.85rem;
+}
+
+.session-meta {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.kill {
+  position: absolute;
+  right: 0.45rem;
+  top: 0.45rem;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.kill:hover {
+  color: var(--danger);
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.footnote {
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.main {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  min-height: 0;
+  height: 100%;
+}
+
+.grid-1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.grid-2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+.grid-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--line);
+  background: var(--bg-pane);
+}
+
+.pane.focused {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+}
+
+.pane-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: color-mix(in oklab, var(--bg-elevated) 80%, transparent);
+}
+
+.pane-agent {
+  color: var(--accent);
+}
+
+.pane-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.terminal-host {
+  position: absolute;
+  inset: 0;
+  padding: 0.25rem;
+}
+
+.empty-pane {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .sidebar {
+    max-height: 42vh;
+  }
+
+  .grid-2,
+  .grid-4 {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}

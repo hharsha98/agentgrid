@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  esbuild: true
+  node-pty: true
+
+onlyBuiltDependencies:
+  - node-pty
+  - esbuild

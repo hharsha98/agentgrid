@@ -1,0 +1,25 @@
+{
+  "name": "agentgrid",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "BridgeSpace-inspired multi-agent terminal grid — independent Cursor lane",
+  "packageManager": "pnpm@11.15.1",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @agentgrid/server --filter @agentgrid/web run dev",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "postinstall": "node scripts/fix-native-perms.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "eslint": "^9.22.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.26.0"
+  }
+}
