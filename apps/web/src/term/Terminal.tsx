@@ -7,6 +7,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import type { ClientMessage, ServerMessage, SessionInfo } from "@agentgrid/shared";
 import { CommandBlockTracker, type CommandBlock } from "./commandBlocks";
 import { wsSessionUrl } from "../lib/http";
+import { readXtermTheme } from "../lib/themes";
 import "@xterm/xterm/css/xterm.css";
 
 interface Props {
@@ -49,12 +50,7 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
       fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
       fontSize: 13,
       lineHeight: 1.25,
-      theme: {
-        background: "#0a0f0d",
-        foreground: "#e8f0eb",
-        cursor: "#3dcf8e",
-        selectionBackground: "#1a5c3f",
-      },
+      theme: readXtermTheme(),
       allowProposedApi: true,
     });
     const fit = new FitAddon();
@@ -129,7 +125,17 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
     host.addEventListener("drop", onDrop);
     host.addEventListener("dragover", onDragOver);
 
+    const syncTheme = () => {
+      term.options.theme = readXtermTheme();
+    };
+    const themeObs = new MutationObserver(syncTheme);
+    themeObs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
     return () => {
+      themeObs.disconnect();
       unsub();
       dataDisp.dispose();
       ro.disconnect();

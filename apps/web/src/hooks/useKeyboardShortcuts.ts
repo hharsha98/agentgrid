@@ -8,6 +8,7 @@ export interface ShortcutHandlers {
   onToggleHelp?: () => void;
   onFocusNext?: () => void;
   onFocusPrev?: () => void;
+  onCycleTheme?: () => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -22,6 +23,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
  * - Meta/Ctrl+Enter  → launch pane
  * - Meta/Ctrl+S      → save workspace template
  * - Meta/Ctrl+] / [  → next / previous session
+ * - Meta/Ctrl+Shift+T → cycle theme
  * - ?                → toggle help (when not typing)
  */
 export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
@@ -49,9 +51,12 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
       } else if (e.key === "Enter") {
         e.preventDefault();
         handlers.onLaunchPane?.();
-      } else if (e.key.toLowerCase() === "s") {
+      } else if (e.key.toLowerCase() === "s" && !e.shiftKey) {
         e.preventDefault();
         handlers.onSaveWorkspace?.();
+      } else if (e.key.toLowerCase() === "t" && e.shiftKey) {
+        e.preventDefault();
+        handlers.onCycleTheme?.();
       } else if (e.key === "]") {
         e.preventDefault();
         handlers.onFocusNext?.();

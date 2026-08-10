@@ -22,7 +22,8 @@ Do not merge the two repos.
 - Layout presets: 1 / 2 / 4 panes visible at once
 - Named workspace label; layout / cwd / agent preference saved in the browser
 - Saved workspace templates on disk (`~/.agentgrid/workspaces.json`) with one-click relaunch
-- Keyboard shortcuts (⌘/Ctrl+1/2/4, Enter, S, [ ])
+- Keyboard shortcuts (⌘/Ctrl+1/2/4, Enter, S, [ ], Shift+T cycles theme)
+- Themes: Phosphor (green), Amber (warm CRT), Contrast (high-contrast)
 - Warp-style command blocks for shell panes (OSC 133)
 - Kanban board with Dispatch → agent session
 - Files view (safe browse/edit under Projects/home) + shared Memory notes + MCP
@@ -59,7 +60,7 @@ pnpm desktop:dev
 - [x] **Phase 2 — Grid (MVP)**: 1 / 2 / 4 pane layouts
 - [x] **Phase 3 — Workspaces**: named workspace + browser prefs
 - [x] **Phase 3b — Workspace templates**: saved under `~/.agentgrid/workspaces.json`, open/launch from sidebar
-- [x] **Phase 4 — Keyboard shortcuts**: layout, launch, save, focus (themes still TODO)
+- [x] **Phase 4 — Keyboard shortcuts + themes**: layout, launch, save, focus; Phosphor / Amber / Contrast
 - [x] **Phase 5 — Command blocks** (OSC 133 markers + collapsible command list for shell panes)
 - [x] **Phase 6 — File tree + light editor** (Files view; text files under allowed roots)
 - [x] **Phase 7 — Kanban board** that dispatches agents into panes

@@ -1,4 +1,5 @@
-:root {
+:root,
+[data-theme="phosphor"] {
   --bg: #0c1210;
   --bg-elevated: #121a17;
   --bg-pane: #0a0f0d;
@@ -9,8 +10,51 @@
   --accent-dim: #1a5c3f;
   --danger: #e86a5c;
   --warn: #e0b35a;
+  --on-accent: #04140c;
+  --brand-mark-from: #1a5c3f;
+  --brand-mark-to: #0c1210;
+  --glow-a: #143528;
+  --glow-b: #1a2430;
   --font-display: "Syne", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Warm CRT amber — same dark terminal feel, different accent. */
+[data-theme="amber"] {
+  --bg: #120e09;
+  --bg-elevated: #1a1410;
+  --bg-pane: #0e0b08;
+  --ink: #f3e6d0;
+  --muted: #a89478;
+  --line: #2a2218;
+  --accent: #e0b35a;
+  --accent-dim: #6b4a1e;
+  --danger: #e86a5c;
+  --warn: #f0c978;
+  --on-accent: #1a1006;
+  --brand-mark-from: #6b4a1e;
+  --brand-mark-to: #120e09;
+  --glow-a: #3a2a14;
+  --glow-b: #241810;
+}
+
+/* Near-black + bright ink for stronger contrast. */
+[data-theme="contrast"] {
+  --bg: #050505;
+  --bg-elevated: #0d0d0d;
+  --bg-pane: #000000;
+  --ink: #f5f5f5;
+  --muted: #a0a0a0;
+  --line: #2e2e2e;
+  --accent: #5eead4;
+  --accent-dim: #134e4a;
+  --danger: #ff6b6b;
+  --warn: #fbbf24;
+  --on-accent: #021412;
+  --brand-mark-from: #134e4a;
+  --brand-mark-to: #050505;
+  --glow-a: #0f2a28;
+  --glow-b: #1a1a22;
 }
 
 * {
@@ -26,11 +70,12 @@ body,
 
 body {
   background:
-    radial-gradient(1200px 600px at 10% -10%, #143528 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #1a2430 0%, transparent 50%),
+    radial-gradient(1200px 600px at 10% -10%, var(--glow-a) 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, var(--glow-b) 0%, transparent 50%),
     var(--bg);
   color: var(--ink);
   font-family: var(--font-mono);
+  transition: background-color 160ms ease, color 160ms ease;
 }
 
 button,

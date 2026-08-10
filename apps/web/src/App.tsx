@@ -16,6 +16,14 @@ import { SwarmPanel } from "./swarm/SwarmPanel";
 import { SkillsPanel } from "./swarm/SkillsPanel";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { api } from "./lib/http";
+import {
+  THEME_IDS,
+  THEME_LABELS,
+  applyTheme,
+  cycleTheme,
+  loadTheme,
+  type ThemeId,
+} from "./lib/themes";
 
 
 const STORAGE_KEY = "agentgrid.workspace.v1";
@@ -57,12 +65,17 @@ export function App() {
   const [workspaceName, setWorkspaceName] = useState(saved.workspaceName ?? "default");
   const [showHelp, setShowHelp] = useState(false);
   const [view, setView] = useState<"grid" | "board" | "files" | "memory" | "swarm" | "skills">("grid");
+  const [theme, setTheme] = useState<ThemeId>(() => loadTheme());
   const [cards, setCards] = useState<KanbanCard[]>([]);
 
   useEffect(() => {
     const payload: SavedWorkspace = { workspaceName, layout, cwd, agentId };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }, [workspaceName, layout, cwd, agentId]);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   const refresh = useCallback(async () => {
     try {
@@ -326,6 +339,7 @@ export function App() {
       onToggleHelp: () => setShowHelp((v) => !v),
       onFocusNext: () => focusRelative(1),
       onFocusPrev: () => focusRelative(-1),
+      onCycleTheme: () => setTheme((t) => cycleTheme(t)),
     }),
     [createSession, saveWorkspace, focusRelative],
   );
@@ -394,6 +408,22 @@ export function App() {
                 onClick={() => setLayout(n)}
               >
                 {n}
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <label className="field">
+          <span>Theme</span>
+          <div className="layout-row">
+            {THEME_IDS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={theme === id ? "chip active" : "chip"}
+                onClick={() => setTheme(id)}
+              >
+                {THEME_LABELS[id]}
               </button>
             ))}
           </div>
@@ -547,11 +577,12 @@ export function App() {
         </button>
         {showHelp && (
           <pre className="help">
-{`⌘/Ctrl+1|2|4  layout
-⌘/Ctrl+Enter  launch pane
-⌘/Ctrl+S      save template
-⌘/Ctrl+[ ]    prev/next session
-?             toggle this help`}
+{`⌘/Ctrl+1|2|4     layout
+⌘/Ctrl+Enter     launch pane
+⌘/Ctrl+S         save template
+⌘/Ctrl+[ ]       prev/next session
+⌘/Ctrl+Shift+T   cycle theme
+?                toggle this help`}
           </pre>
         )}
 
