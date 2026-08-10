@@ -10,6 +10,8 @@ import type {
 } from "@agentgrid/shared";
 import { Terminal } from "./term/Terminal";
 import { KanbanBoard } from "./board/KanbanBoard";
+import { FilesPanel } from "./files/FilesPanel";
+import { MemoryPanel } from "./files/MemoryPanel";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -74,7 +76,7 @@ export function App() {
   const [layout, setLayout] = useState<LayoutPreset>(saved.layout ?? 1);
   const [workspaceName, setWorkspaceName] = useState(saved.workspaceName ?? "default");
   const [showHelp, setShowHelp] = useState(false);
-  const [view, setView] = useState<"grid" | "board">("grid");
+  const [view, setView] = useState<"grid" | "board" | "files" | "memory">("grid");
   const [cards, setCards] = useState<KanbanCard[]>([]);
 
   useEffect(() => {
@@ -370,21 +372,24 @@ export function App() {
           <span className="port-hint">:4318 / :5318</span>
         </div>
 
-        <div className="layout-row">
-          <button
-            type="button"
-            className={view === "grid" ? "chip active" : "chip"}
-            onClick={() => setView("grid")}
-          >
-            Grid
-          </button>
-          <button
-            type="button"
-            className={view === "board" ? "chip active" : "chip"}
-            onClick={() => setView("board")}
-          >
-            Board
-          </button>
+        <div className="layout-row view-row">
+          {(
+            [
+              ["grid", "Grid"],
+              ["board", "Board"],
+              ["files", "Files"],
+              ["memory", "Memory"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={view === id ? "chip active" : "chip"}
+              onClick={() => setView(id)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <label className="field">
@@ -573,7 +578,11 @@ export function App() {
         </p>
       </aside>
 
-      <main className={view === "board" ? "main board-main" : `main ${gridClass}`}>
+      <main
+        className={
+          view === "grid" ? `main ${gridClass}` : "main board-main"
+        }
+      >
         {view === "board" ? (
           <KanbanBoard
             cards={cards}
@@ -584,6 +593,10 @@ export function App() {
             onDispatch={(id) => void dispatchCard(id)}
             onDelete={(id) => void deleteCard(id)}
           />
+        ) : view === "files" ? (
+          <FilesPanel initialRoot={cwd.trim() || undefined} />
+        ) : view === "memory" ? (
+          <MemoryPanel />
         ) : (
           slots.map((session, i) => (
             <section

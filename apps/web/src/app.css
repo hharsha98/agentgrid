@@ -529,3 +529,128 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+.view-row {
+  flex-wrap: wrap;
+}
+
+.files-panel,
+.memory-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 0.5rem;
+  padding: 0.6rem;
+}
+
+.files-toolbar,
+.memory-toolbar {
+  display: grid;
+  grid-template-columns: 1.4fr auto 1fr auto;
+  gap: 0.45rem;
+}
+
+.memory-toolbar {
+  grid-template-columns: 1fr auto auto;
+}
+
+.files-toolbar select,
+.files-toolbar input,
+.memory-toolbar input {
+  background: var(--bg-pane);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.5rem 0.55rem;
+}
+
+.files-body,
+.memory-body {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 0.5rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.files-tree,
+.memory-list {
+  border: 1px solid var(--line);
+  background: var(--bg-pane);
+  overflow: auto;
+  min-height: 0;
+}
+
+.files-cwd,
+.memory-dir,
+.files-editor-path {
+  font-size: 0.7rem;
+  color: var(--muted);
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  word-break: break-all;
+}
+
+.files-item,
+.memory-open {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 0.4rem 0.5rem;
+  font-size: 0.78rem;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.files-item.active,
+.memory-item.active .memory-open {
+  background: color-mix(in oklab, var(--accent-dim) 45%, transparent);
+}
+
+.files-kind {
+  color: var(--muted);
+  font-size: 0.62rem;
+  width: 2.2rem;
+}
+
+.files-editor,
+.memory-editor {
+  border: 1px solid var(--line);
+  background: var(--bg-pane);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.files-editor textarea,
+.memory-editor textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  padding: 0.6rem;
+}
+
+.memory-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  border-bottom: 1px solid var(--line);
+}
+
+@media (max-width: 900px) {
+  .files-body,
+  .memory-body {
+    grid-template-columns: 1fr;
+  }
+}

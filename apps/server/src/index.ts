@@ -14,15 +14,27 @@ import { detectAgents } from "./pty/agents.js";
 import { AgentMissingError, SessionManager } from "./pty/session-manager.js";
 import { WorkspaceStore } from "./workspaces/store.js";
 import { KanbanStore } from "./kanban/store.js";
+import {
+  defaultRoots,
+  listDir,
+  PathEscapeError,
+  readFile as readFsFile,
+  writeFile as writeFsFile,
+} from "./fs/safe-fs.js";
+import { MemoryStore } from "./memory/store.js";
 
 export async function buildApp(options?: {
   workspaceStore?: WorkspaceStore;
   kanbanStore?: KanbanStore;
+  memoryStore?: MemoryStore;
+  fsRoots?: string[];
 }) {
   const app = Fastify({ logger: true });
   const sessions = new SessionManager();
   const workspaces = options?.workspaceStore ?? new WorkspaceStore();
   const kanban = options?.kanbanStore ?? new KanbanStore();
+  const memory = options?.memoryStore ?? new MemoryStore();
+  const fsRoots = options?.fsRoots ?? defaultRoots();
 
   await app.register(websocket);
 
@@ -184,6 +196,91 @@ export async function buildApp(options?: {
     },
   );
 
+
+  app.get("/api/fs/roots", async () => ({ roots: fsRoots }));
+
+  app.get<{ Querystring: { root?: string; path?: string } }>(
+    "/api/fs/tree",
+    async (req, reply) => {
+      const root = req.query.root || fsRoots[0];
+      if (!root || !fsRoots.includes(root)) {
+        return reply.code(400).send({ error: "invalid root" });
+      }
+      try {
+        return { root, path: req.query.path || ".", entries: listDir(root, req.query.path || ".") };
+      } catch (err) {
+        const code = err instanceof PathEscapeError ? 400 : 400;
+        return reply.code(code).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  app.get<{ Querystring: { root?: string; path?: string } }>(
+    "/api/fs/file",
+    async (req, reply) => {
+      const root = req.query.root || fsRoots[0];
+      const rel = req.query.path;
+      if (!root || !fsRoots.includes(root) || !rel) {
+        return reply.code(400).send({ error: "root and path required" });
+      }
+      try {
+        return { file: readFsFile(root, rel) };
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  app.put<{ Body: { root?: string; path?: string; content?: string } }>(
+    "/api/fs/file",
+    async (req, reply) => {
+      const root = req.body?.root || fsRoots[0];
+      const rel = req.body?.path;
+      const content = req.body?.content;
+      if (!root || !fsRoots.includes(root) || !rel || typeof content !== "string") {
+        return reply.code(400).send({ error: "root, path, and content required" });
+      }
+      try {
+        return { file: writeFsFile(root, rel, content) };
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  app.get("/api/memory", async () => ({
+    notes: memory.list(),
+    directory: memory.directory,
+  }));
+
+  app.get<{ Params: { id: string } }>("/api/memory/:id", async (req, reply) => {
+    const note = memory.get(req.params.id);
+    if (!note) return reply.code(404).send({ error: "note not found" });
+    return { note };
+  });
+
+  app.post<{ Body: { title?: string; content?: string; id?: string } }>(
+    "/api/memory",
+    async (req, reply) => {
+      try {
+        const note = memory.upsert({
+          id: req.body?.id,
+          title: req.body?.title ?? "",
+          content: req.body?.content,
+        });
+        return reply.code(201).send({ note });
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>("/api/memory/:id", async (req, reply) => {
+    const ok = memory.remove(req.params.id);
+    if (!ok) return reply.code(404).send({ error: "note not found" });
+    return reply.code(204).send();
+  });
+
   app.get<{ Params: { id: string } }>("/api/sessions/:id/ws", { websocket: true }, (socket, req) => {
     const id = req.params.id;
     const info = sessions.get(id);
@@ -240,7 +337,7 @@ export async function buildApp(options?: {
     sessions.disposeAll();
   });
 
-  return { app, sessions, workspaces, kanban };
+  return { app, sessions, workspaces, kanban, memory, fsRoots };
 }
 
 async function main() {

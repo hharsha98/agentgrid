@@ -149,3 +149,24 @@ export interface DispatchKanbanCardRequest {
   agentId?: AgentId;
   cwd?: string;
 }
+
+
+export interface FsEntry {
+  name: string;
+  path: string;
+  type: "file" | "dir";
+  size?: number;
+}
+
+export interface FsFileContent {
+  path: string;
+  content: string;
+  truncated?: boolean;
+}
+
+export interface MemoryNote {
+  id: string;
+  title: string;
+  content: string;
+  updatedAt: string;
+}

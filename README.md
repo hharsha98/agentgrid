@@ -51,9 +51,9 @@ Open **http://localhost:5318**
 - [x] **Phase 3b — Workspace templates**: saved under `~/.agentgrid/workspaces.json`, open/launch from sidebar
 - [x] **Phase 4 — Keyboard shortcuts**: layout, launch, save, focus (themes still TODO)
 - [x] **Phase 5 — Command blocks** (OSC 133 markers + collapsible command list for shell panes)
-- [ ] **Phase 6 — File tree + light editor**
+- [x] **Phase 6 — File tree + light editor** (Files view; text files under allowed roots)
 - [x] **Phase 7 — Kanban board** that dispatches agents into panes
-- [ ] **Phase 8 — Shared memory / MCP**
+- [x] **Phase 8 — Shared memory / MCP** (`~/.agentgrid/memory` + `@agentgrid/mcp` STDIO server)
 - [ ] **Phase 9 — Swarm roles + file ownership**
 - [ ] **Phase 10 — Skills**
 - [ ] **Phase 11 — Desktop app (Tauri)**
@@ -72,3 +72,15 @@ agentgrid/
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+
+## Shared memory MCP
+
+Agents can read/write the same notes via a small STDIO MCP server:
+
+```bash
+pnpm --filter @agentgrid/mcp start
+```
+
+Point Claude Code / Cursor MCP config at that command (cwd = this repo). Tools:
+`memory_list`, `memory_read`, `memory_write`. Notes live in `~/.agentgrid/memory/`.

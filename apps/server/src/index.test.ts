@@ -7,6 +7,7 @@ import { buildApp } from "./index.js";
 import type { SessionManager } from "./pty/session-manager.js";
 import { WorkspaceStore } from "./workspaces/store.js";
 import { KanbanStore } from "./kanban/store.js";
+import { MemoryStore } from "./memory/store.js";
 
 describe("HTTP API", () => {
   let app: FastifyInstance;
@@ -18,6 +19,8 @@ describe("HTTP API", () => {
     const built = await buildApp({
       workspaceStore: new WorkspaceStore(join(tmpDir, "workspaces.json")),
       kanbanStore: new KanbanStore(join(tmpDir, "kanban.json")),
+      memoryStore: new MemoryStore(join(tmpDir, "memory")),
+      fsRoots: [tmpDir],
     });
     app = built.app;
     sessions = built.sessions;
@@ -128,6 +131,34 @@ describe("HTTP API", () => {
     expect(body.card.column).toBe("in_progress");
     expect(body.session.id).toBeTruthy();
     sessions.dispose(body.session.id);
+  });
+
+
+  it("reads and writes files under allowed roots", async () => {
+    const write = await app.inject({
+      method: "PUT",
+      url: "/api/fs/file",
+      payload: { root: tmpDir, path: "hello.txt", content: "hi" },
+    });
+    expect(write.statusCode).toBe(200);
+    const read = await app.inject({
+      method: "GET",
+      url: `/api/fs/file?root=${encodeURIComponent(tmpDir)}&path=hello.txt`,
+    });
+    expect(read.statusCode).toBe(200);
+    expect((read.json() as { file: { content: string } }).file.content).toBe("hi");
+  });
+
+  it("creates shared memory notes", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/api/memory",
+      payload: { title: "Decisions", content: "# Decisions\n\nUse pnpm\n" },
+    });
+    expect(create.statusCode).toBe(201);
+    const list = await app.inject({ method: "GET", url: "/api/memory" });
+    const body = list.json() as { notes: { title: string }[] };
+    expect(body.notes.some((n) => n.title === "Decisions")).toBe(true);
   });
 
 });
