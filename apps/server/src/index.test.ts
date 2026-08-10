@@ -1,14 +1,22 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { buildApp } from "./index.js";
 import type { SessionManager } from "./pty/session-manager.js";
+import { WorkspaceStore } from "./workspaces/store.js";
 
 describe("HTTP API", () => {
   let app: FastifyInstance;
   let sessions: SessionManager;
+  let tmpDir: string;
 
   beforeAll(async () => {
-    const built = await buildApp();
+    tmpDir = mkdtempSync(join(tmpdir(), "agentgrid-api-ws-"));
+    const built = await buildApp({
+      workspaceStore: new WorkspaceStore(join(tmpDir, "workspaces.json")),
+    });
     app = built.app;
     sessions = built.sessions;
     await app.ready();
@@ -17,6 +25,7 @@ describe("HTTP API", () => {
   afterAll(async () => {
     sessions.disposeAll();
     await app.close();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("health check", async () => {
@@ -63,4 +72,35 @@ describe("HTTP API", () => {
     });
     expect(res.statusCode).toBe(400);
   });
+
+  it("saves and launches a workspace template", async () => {
+    const save = await app.inject({
+      method: "POST",
+      url: "/api/workspaces",
+      payload: {
+        name: "pair",
+        layout: 2,
+        panes: [{ agentId: "shell", title: "A" }, { agentId: "shell", title: "B" }],
+      },
+    });
+    expect(save.statusCode).toBe(201);
+    const saved = save.json() as { workspace: { id: string } };
+
+    const list = await app.inject({ method: "GET", url: "/api/workspaces" });
+    expect(list.statusCode).toBe(200);
+    const listed = list.json() as { workspaces: { id: string }[] };
+    expect(listed.workspaces.some((w) => w.id === saved.workspace.id)).toBe(true);
+
+    const launch = await app.inject({
+      method: "POST",
+      url: `/api/workspaces/${saved.workspace.id}/launch`,
+    });
+    expect(launch.statusCode).toBe(201);
+    const launched = launch.json() as { sessions: { id: string }[] };
+    expect(launched.sessions).toHaveLength(2);
+    for (const s of launched.sessions) {
+      sessions.dispose(s.id);
+    }
+  });
+
 });

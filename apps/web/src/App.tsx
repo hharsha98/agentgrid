@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AgentAvailability, AgentId, SessionInfo } from "@agentgrid/shared";
+import type {
+  AgentAvailability,
+  AgentId,
+  LayoutPreset,
+  SessionInfo,
+  WorkspaceTemplate,
+} from "@agentgrid/shared";
 import { Terminal } from "./term/Terminal";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -25,8 +32,6 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
-
-type LayoutPreset = 1 | 2 | 4;
 
 const STORAGE_KEY = "agentgrid.workspace.v1";
 
@@ -56,6 +61,7 @@ export function App() {
   const [health, setHealth] = useState<"checking" | "ok" | "down">("checking");
   const [agents, setAgents] = useState<AgentAvailability[]>([]);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [agentId, setAgentId] = useState<AgentId>(saved.agentId ?? "shell");
   const [cwd, setCwd] = useState(saved.cwd ?? "");
@@ -64,6 +70,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [layout, setLayout] = useState<LayoutPreset>(saved.layout ?? 1);
   const [workspaceName, setWorkspaceName] = useState(saved.workspaceName ?? "default");
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     const payload: SavedWorkspace = { workspaceName, layout, cwd, agentId };
@@ -79,6 +86,8 @@ export function App() {
       const s = await api<{ sessions: SessionInfo[] }>("/api/sessions");
       setSessions(s.sessions);
       setActiveId((prev) => prev ?? s.sessions[0]?.id ?? null);
+      const w = await api<{ workspaces: WorkspaceTemplate[] }>("/api/workspaces");
+      setTemplates(w.workspaces);
       setError(null);
     } catch (err) {
       setHealth("down");
@@ -112,19 +121,20 @@ export function App() {
   const createOne = async (
     nextAgent: AgentId,
     nextTitle?: string,
+    nextCwd?: string,
   ): Promise<SessionInfo> => {
     const res = await api<{ session: SessionInfo }>("/api/sessions", {
       method: "POST",
       body: JSON.stringify({
         agentId: nextAgent,
-        cwd: cwd.trim() || undefined,
+        cwd: (nextCwd ?? cwd).trim() || undefined,
         title: nextTitle?.trim() || undefined,
       }),
     });
     return res.session;
   };
 
-  const createSession = async () => {
+  const createSession = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
@@ -137,9 +147,8 @@ export function App() {
     } finally {
       setBusy(false);
     }
-  };
+  }, [agentId, title, cwd]);
 
-  /** BridgeSpace-style: open several agents at once into the grid. */
   const launchPreset = async (ids: AgentId[], name: string) => {
     setBusy(true);
     setError(null);
@@ -166,6 +175,66 @@ export function App() {
     }
   };
 
+  const saveWorkspace = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const panes =
+        sessions.length > 0
+          ? sessions.map((s) => ({ agentId: s.agentId, title: s.title }))
+          : [{ agentId, title: title || undefined }];
+      const res = await api<{ workspace: WorkspaceTemplate }>("/api/workspaces", {
+        method: "POST",
+        body: JSON.stringify({
+          name: workspaceName.trim() || "untitled",
+          cwd: cwd.trim() || undefined,
+          layout,
+          panes,
+        }),
+      });
+      setTemplates((prev) => {
+        const others = prev.filter((w) => w.id !== res.workspace.id);
+        return [res.workspace, ...others];
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [sessions, agentId, title, workspaceName, cwd, layout]);
+
+  const openWorkspace = async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{
+        workspace: WorkspaceTemplate;
+        sessions: SessionInfo[];
+      }>(`/api/workspaces/${id}/launch`, { method: "POST" });
+      setWorkspaceName(res.workspace.name);
+      setLayout(res.workspace.layout);
+      setCwd(res.workspace.cwd ?? "");
+      setSessions((prev) => [...prev, ...res.sessions]);
+      setActiveId(res.sessions[0]?.id ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteWorkspace = async (id: string) => {
+    setBusy(true);
+    try {
+      await api<void>(`/api/workspaces/${id}`, { method: "DELETE" });
+      setTemplates((prev) => prev.filter((w) => w.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const killSession = async (id: string) => {
     setBusy(true);
     try {
@@ -178,6 +247,37 @@ export function App() {
       setBusy(false);
     }
   };
+
+  const focusRelative = useCallback(
+    (delta: number) => {
+      if (sessions.length === 0) return;
+      const idx = Math.max(
+        0,
+        sessions.findIndex((s) => s.id === activeId),
+      );
+      const next = sessions[(idx + delta + sessions.length) % sessions.length];
+      if (next) setActiveId(next.id);
+    },
+    [sessions, activeId],
+  );
+
+  const shortcutHandlers = useMemo(
+    () => ({
+      onLayout: setLayout,
+      onLaunchPane: () => {
+        void createSession();
+      },
+      onSaveWorkspace: () => {
+        void saveWorkspace();
+      },
+      onToggleHelp: () => setShowHelp((v) => !v),
+      onFocusNext: () => focusRelative(1),
+      onFocusPrev: () => focusRelative(-1),
+    }),
+    [createSession, saveWorkspace, focusRelative],
+  );
+
+  useKeyboardShortcuts(shortcutHandlers);
 
   const slots = splitIds(sessions, layout);
   const gridClass =
@@ -295,7 +395,44 @@ export function App() {
           Launch pane
         </button>
 
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy || health !== "ok"}
+          onClick={() => void saveWorkspace()}
+        >
+          Save workspace template
+        </button>
+
         {error && <pre className="error">{error}</pre>}
+
+        <div className="session-list">
+          <div className="section-label">Saved templates</div>
+          {templates.length === 0 && <div className="empty">None yet — save one above</div>}
+          {templates.map((w) => (
+            <div key={w.id} className="template">
+              <button
+                type="button"
+                className="template-main"
+                disabled={busy}
+                onClick={() => void openWorkspace(w.id)}
+              >
+                <span className="session-title">{w.name}</span>
+                <span className="session-meta">
+                  {w.layout}-pane · {w.panes.map((p) => p.agentId).join(" + ")}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="template-del"
+                aria-label={`Delete ${w.name}`}
+                onClick={() => void deleteWorkspace(w.id)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
 
         <div className="session-list">
           <div className="section-label">Sessions</div>
@@ -330,8 +467,21 @@ export function App() {
           ))}
         </div>
 
+        <button type="button" className="help-toggle" onClick={() => setShowHelp((v) => !v)}>
+          {showHelp ? "Hide shortcuts" : "Keyboard shortcuts (?)"}
+        </button>
+        {showHelp && (
+          <pre className="help">
+{`⌘/Ctrl+1|2|4  layout
+⌘/Ctrl+Enter  launch pane
+⌘/Ctrl+S      save template
+⌘/Ctrl+[ ]    prev/next session
+?             toggle this help`}
+          </pre>
+        )}
+
         <p className="footnote">
-          Isolated from vibedeck. Claude Code owns vibedeck; Cursor owns agentgrid. No shared git.
+          Isolated from vibedeck. Templates live in ~/.agentgrid/workspaces.json
         </p>
       </aside>
 

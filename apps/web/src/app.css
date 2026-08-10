@@ -304,3 +304,51 @@
     grid-template-rows: repeat(auto-fit, minmax(220px, 1fr));
   }
 }
+
+
+.template {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem;
+  align-items: stretch;
+}
+
+.template-main {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 0.55rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.template-del {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  padding: 0 0.55rem;
+}
+
+.template-del:hover {
+  color: var(--danger);
+}
+
+.help-toggle {
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted);
+  padding: 0.45rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.help {
+  margin: 0;
+  padding: 0.55rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--bg-pane);
+  white-space: pre-wrap;
+}

@@ -6,13 +6,16 @@ import {
   type ClientMessage,
   type CreateSessionRequest,
   type ServerMessage,
+  type UpsertWorkspaceRequest,
 } from "@agentgrid/shared";
 import { detectAgents } from "./pty/agents.js";
 import { AgentMissingError, SessionManager } from "./pty/session-manager.js";
+import { WorkspaceStore } from "./workspaces/store.js";
 
-export async function buildApp() {
+export async function buildApp(options?: { workspaceStore?: WorkspaceStore }) {
   const app = Fastify({ logger: true });
   const sessions = new SessionManager();
+  const workspaces = options?.workspaceStore ?? new WorkspaceStore();
 
   await app.register(websocket);
 
@@ -56,6 +59,55 @@ export async function buildApp() {
     const ok = sessions.dispose(req.params.id);
     if (!ok) return reply.code(404).send({ error: "session not found" });
     return reply.code(204).send();
+  });
+
+  app.get("/api/workspaces", async () => ({ workspaces: workspaces.list() }));
+
+  app.post<{ Body: UpsertWorkspaceRequest }>("/api/workspaces", async (req, reply) => {
+    try {
+      const workspace = workspaces.upsert(req.body ?? ({} as UpsertWorkspaceRequest));
+      return reply.code(201).send({ workspace });
+    } catch (err) {
+      return reply.code(400).send({
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/workspaces/:id", async (req, reply) => {
+    const ok = workspaces.remove(req.params.id);
+    if (!ok) return reply.code(404).send({ error: "workspace not found" });
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { id: string } }>("/api/workspaces/:id/launch", async (req, reply) => {
+    const workspace = workspaces.get(req.params.id);
+    if (!workspace) return reply.code(404).send({ error: "workspace not found" });
+
+    const created = [];
+    try {
+      for (const pane of workspace.panes) {
+        created.push(
+          sessions.create({
+            agentId: pane.agentId,
+            cwd: workspace.cwd,
+            title: pane.title ?? `${workspace.name} · ${pane.agentId}`,
+          }),
+        );
+      }
+    } catch (err) {
+      for (const s of created) sessions.dispose(s.id);
+      if (err instanceof AgentMissingError) {
+        return reply.code(409).send({
+          error: err.message,
+          agentId: err.agentId,
+          installHint: err.installHint,
+        });
+      }
+      throw err;
+    }
+
+    return reply.code(201).send({ workspace, sessions: created });
   });
 
   app.get<{ Params: { id: string } }>("/api/sessions/:id/ws", { websocket: true }, (socket, req) => {
@@ -114,7 +166,7 @@ export async function buildApp() {
     sessions.disposeAll();
   });
 
-  return { app, sessions };
+  return { app, sessions, workspaces };
 }
 
 async function main() {

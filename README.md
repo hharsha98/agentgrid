@@ -21,6 +21,8 @@ Do not merge the two repos.
 - Launch **Claude Code**, **cursor-agent**, **Codex**, or a plain **shell**
 - Layout presets: 1 / 2 / 4 panes visible at once
 - Named workspace label; layout / cwd / agent preference saved in the browser
+- Saved workspace templates on disk (`~/.agentgrid/workspaces.json`) with one-click relaunch
+- Keyboard shortcuts (⌘/Ctrl+1/2/4, Enter, S, [ ])
 - Session list survives browser refresh (server keeps PTYs alive until you kill them)
 
 ## Quickstart
@@ -43,9 +45,9 @@ Open **http://localhost:5318**
 - [x] **Phase 0 — Foundation**: pnpm workspace, CI, shared protocol, Fastify + React
 - [x] **Phase 1 — Terminal core**: PTY sessions, WebSocket I/O, scrollback, agent PATH detection
 - [x] **Phase 2 — Grid (MVP)**: 1 / 2 / 4 pane layouts
-- [x] **Phase 3 — Workspaces (partial)**: named workspace + layout/cwd/agent prefs saved in the browser; full auto-launch templates still TODO
-- [ ] **Phase 3b — Workspace templates**: persist named layouts + auto-launch agents per workspace on disk
-- [ ] **Phase 4 — Keyboard-first + themes**
+- [x] **Phase 3 — Workspaces**: named workspace + browser prefs
+- [x] **Phase 3b — Workspace templates**: saved under `~/.agentgrid/workspaces.json`, open/launch from sidebar
+- [x] **Phase 4 — Keyboard shortcuts**: layout, launch, save, focus (themes still TODO)
 - [ ] **Phase 5 — Command blocks** (Warp-style)
 - [ ] **Phase 6 — File tree + light editor**
 - [ ] **Phase 7 — Kanban that dispatches agents**

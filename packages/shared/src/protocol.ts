@@ -91,3 +91,33 @@ export type ServerMessage =
   | { type: "output"; data: string }
   | { type: "exit"; code: number | null }
   | { type: "error"; message: string };
+
+
+export type LayoutPreset = 1 | 2 | 4;
+
+export interface WorkspacePaneSpec {
+  agentId: AgentId;
+  title?: string;
+}
+
+export interface WorkspaceTemplate {
+  id: string;
+  name: string;
+  cwd?: string;
+  layout: LayoutPreset;
+  panes: WorkspacePaneSpec[];
+  updatedAt: string;
+}
+
+export interface UpsertWorkspaceRequest {
+  id?: string;
+  name: string;
+  cwd?: string;
+  layout: LayoutPreset;
+  panes: WorkspacePaneSpec[];
+}
+
+export interface LaunchWorkspaceResponse {
+  workspace: WorkspaceTemplate;
+  sessions: SessionInfo[];
+}
