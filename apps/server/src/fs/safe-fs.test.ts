@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { listDir, PathEscapeError, readFile, resolveUnderRoot, writeFile } from "./safe-fs.js";
+import { listDir, PathEscapeError, readFile, resolveUnderRoot, statFile, writeFile } from "./safe-fs.js";
 
 describe("safe-fs", () => {
   const dirs: string[] = [];
@@ -36,5 +36,13 @@ describe("safe-fs", () => {
     const r = root();
     writeFile(r, "new/file.txt", "data");
     expect(readFile(r, "new/file.txt").content).toBe("data");
+  });
+
+  it("stats files under root", () => {
+    const r = root();
+    writeFileSync(join(r, "a.txt"), "hello");
+    const st = statFile(r, "a.txt");
+    expect(st.size).toBe(5);
+    expect(st.mtimeMs).toBeGreaterThan(0);
   });
 });

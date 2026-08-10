@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SwarmMission } from "@agentgrid/shared";
+import type { SwarmMission, SwarmPlanNode, SwarmPlanStatus } from "@agentgrid/shared";
 import { api } from "../lib/http";
 
 
@@ -7,6 +7,50 @@ interface Props {
   busy?: boolean;
   cwd?: string;
   onLaunched?: (swarm: SwarmMission) => void;
+}
+
+function PlanNodeView({
+  node,
+  depth,
+  working,
+  onStatus,
+}: {
+  node: SwarmPlanNode;
+  depth: number;
+  working: boolean;
+  onStatus: (nodeId: string, status: SwarmPlanStatus) => void;
+}) {
+  return (
+    <div className="mission-node" style={{ marginLeft: depth * 12 }}>
+      <div className="mission-node-row">
+        <span className={`mission-status status-${node.status}`}>{node.status}</span>
+        <span className="mission-title">{node.title}</span>
+        {node.role && <span className="session-meta">{node.role}</span>}
+      </div>
+      <div className="mission-node-actions">
+        {(["pending", "doing", "done"] as SwarmPlanStatus[]).map((s) => (
+          <button
+            key={s}
+            type="button"
+            className={node.status === s ? "chip active" : "chip"}
+            disabled={working || node.status === s}
+            onClick={() => onStatus(node.id, s)}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+      {(node.children ?? []).map((child) => (
+        <PlanNodeView
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          working={working}
+          onStatus={onStatus}
+        />
+      ))}
+    </div>
+  );
 }
 
 export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
@@ -113,6 +157,23 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
     }
   };
 
+  const setPlanStatus = async (nodeId: string, status: SwarmPlanStatus) => {
+    if (!selectedId) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await api(`/api/swarm/${selectedId}/plan`, {
+        method: "POST",
+        body: JSON.stringify({ nodeId, status }),
+      });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  };
+
   const selected = swarms.find((s) => s.id === selectedId) ?? swarms[0] ?? null;
 
   return (
@@ -201,6 +262,19 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
                   Mark failed
                 </button>
                 <span className="session-meta">now: {selected.status}</span>
+              </div>
+              <div className="section-label">Mission plan</div>
+              <div className="mission-tree">
+                {(selected.plan ?? []).length === 0 && <div className="empty">No plan nodes</div>}
+                {(selected.plan ?? []).map((node) => (
+                  <PlanNodeView
+                    key={node.id}
+                    node={node}
+                    depth={0}
+                    working={working}
+                    onStatus={(id, status) => void setPlanStatus(id, status)}
+                  />
+                ))}
               </div>
               <div className="section-label">Shared mailbox</div>
               <div className="swarm-mailbox">

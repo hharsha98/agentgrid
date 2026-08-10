@@ -10,6 +10,7 @@ import { KanbanStore } from "./kanban/store.js";
 import { MemoryStore } from "./memory/store.js";
 import { SwarmStore } from "./swarm/store.js";
 import { SkillStore } from "./skills/store.js";
+import { PromptStore } from "./prompts/store.js";
 
 describe("HTTP API", () => {
   let app: FastifyInstance;
@@ -24,6 +25,7 @@ describe("HTTP API", () => {
       memoryStore: new MemoryStore(join(tmpDir, "memory")),
       swarmStore: new SwarmStore(join(tmpDir, "swarms.json")),
       skillStore: new SkillStore(),
+      promptStore: new PromptStore(join(tmpDir, "prompts.json")),
       fsRoots: [tmpDir],
     });
     app = built.app;
@@ -171,6 +173,83 @@ describe("HTTP API", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as { skills: { id: string }[] };
     expect(body.skills.some((s) => s.id === "security-review")).toBe(true);
+  });
+
+
+  it("saves and applies prompts", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/api/prompts",
+      payload: { name: "Hello", body: "echo hi" },
+    });
+    expect(create.statusCode).toBe(201);
+    const created = create.json() as { prompt: { id: string } };
+
+    const session = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { agentId: "shell", title: "prompt-target" },
+    });
+    const sid = (session.json() as { session: { id: string } }).session.id;
+
+    const apply = await app.inject({
+      method: "POST",
+      url: `/api/prompts/${created.prompt.id}/apply`,
+      payload: { sessionId: sid },
+    });
+    expect(apply.statusCode).toBe(200);
+    sessions.dispose(sid);
+  });
+
+  it("stats files", async () => {
+    await app.inject({
+      method: "PUT",
+      url: "/api/fs/file",
+      payload: { root: tmpDir, path: "stat-me.txt", content: "abc" },
+    });
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/fs/stat?root=${encodeURIComponent(tmpDir)}&path=stat-me.txt`,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { stat: { size: number; mtimeMs: number } };
+    expect(body.stat.size).toBe(3);
+    expect(body.stat.mtimeMs).toBeGreaterThan(0);
+  });
+
+  it("moves kanban card when linked session exits", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/api/kanban/cards",
+      payload: { title: "Exit sync", agentId: "shell" },
+    });
+    const cardId = (create.json() as { card: { id: string } }).card.id;
+    const dispatch = await app.inject({
+      method: "POST",
+      url: `/api/kanban/cards/${cardId}/dispatch`,
+      payload: {},
+    });
+    expect(dispatch.statusCode).toBe(201);
+    const body = dispatch.json() as {
+      card: { sessionId?: string };
+      session: { id: string };
+    };
+    const sessionId = body.session.id;
+    sessions.write(sessionId, "exit\n");
+    // Wait for pty exit + handler
+    let column = "in_progress";
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      const list = await app.inject({ method: "GET", url: "/api/kanban" });
+      const cards = (list.json() as { cards: { id: string; column: string }[] }).cards;
+      const card = cards.find((c) => c.id === cardId);
+      if (card && card.column !== "in_progress") {
+        column = card.column;
+        break;
+      }
+    }
+    expect(["done", "in_review"]).toContain(column);
+    sessions.dispose(sessionId);
   });
 
   it("launches a swarm with fallbacks", async () => {

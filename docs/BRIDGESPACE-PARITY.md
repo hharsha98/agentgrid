@@ -9,13 +9,18 @@ proprietary BridgeMind cloud products.
 | BridgeSpace capability | agentgrid | Notes |
 |---|---|---|
 | Up to 16 terminal panes | Yes | Layouts 1 / 2 / 4 / 6 / 8 / 12 / 16 |
+| Freeform pane split / resize | Yes | Layout → Free: H/V split + drag handles |
 | GPU-accelerated xterm | Yes | WebGL when available |
 | Warp-style command blocks | Yes | OSC 133 + shell integration |
 | Workspaces / templates | Yes | `~/.agentgrid/workspaces.json` |
 | Kanban → dispatch agent | Yes | Drag cards between columns + Dispatch |
+| Agent ↔ kanban auto status | Yes | Session exit moves linked `in_progress` → `done` / `in_review` |
 | File browser + code editor | Yes | Monaco with language detection |
+| File watch in editor | Yes | Polls mtime; stale banner + Reload |
 | Skills on panes | Yes | Apply button **or drag skill onto pane** |
+| Prompts library | Yes | Save / apply / delete under Prompts view |
 | Swarm roles + file ownership | Yes | coordinator / builder / scout / reviewer |
+| Live mission plan tree | Yes | Per-role nodes with pending / doing / done |
 | Shared swarm mailbox | Yes | Human + role notes on a mission |
 | Shared memory / MCP | Yes | STDIO MCP + local notes |
 | Native desktop (Tauri) | Yes | Auto-starts API on :4318 |
@@ -35,16 +40,12 @@ proprietary BridgeMind cloud products.
 | BridgeAgent autonomous loop product | No |
 | BridgeShot | No |
 | Paid / freemium cloud billing | No |
-| Arbitrary freeform pane splitters (infinite split) | Fixed presets only |
 | Inline terminal image protocols | Not implemented |
-| File watching auto-reload in editor | Manual reload / re-open |
 
 ## Remaining soft gaps (nice-to-have)
 
-1. Freeform split/resize (vs fixed CSS grids)
-2. Live mission tree visualization beyond members list
-3. Automatic agent↔kanban status sync while agents run
-4. Windows/Linux desktop packaging polish beyond macOS `.app`
-5. Prompts library UI (beyond Skills markdown bundles)
+1. Windows/Linux desktop packaging polish beyond macOS `.app`
+2. Deeper terminal image / graphics protocol support
+3. Richer nested mission trees (multi-level planning UI)
 
-Updated as of the BridgeSpace parity pass.
+Updated as of the full local parity pass.
