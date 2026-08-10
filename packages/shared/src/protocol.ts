@@ -78,6 +78,7 @@ export interface CreateSessionRequest {
   cols?: number;
   rows?: number;
   title?: string;
+  initialInput?: string;
 }
 
 /** Client → server WebSocket messages */
@@ -120,4 +121,31 @@ export interface UpsertWorkspaceRequest {
 export interface LaunchWorkspaceResponse {
   workspace: WorkspaceTemplate;
   sessions: SessionInfo[];
+}
+
+
+export type KanbanColumn = "todo" | "in_progress" | "in_review" | "done";
+
+export interface KanbanCard {
+  id: string;
+  title: string;
+  body?: string;
+  column: KanbanColumn;
+  agentId: AgentId;
+  sessionId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertKanbanCardRequest {
+  id?: string;
+  title: string;
+  body?: string;
+  column?: KanbanColumn;
+  agentId?: AgentId;
+}
+
+export interface DispatchKanbanCardRequest {
+  agentId?: AgentId;
+  cwd?: string;
 }

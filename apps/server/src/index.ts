@@ -6,16 +6,23 @@ import {
   type ClientMessage,
   type CreateSessionRequest,
   type ServerMessage,
+  type DispatchKanbanCardRequest,
+  type UpsertKanbanCardRequest,
   type UpsertWorkspaceRequest,
 } from "@agentgrid/shared";
 import { detectAgents } from "./pty/agents.js";
 import { AgentMissingError, SessionManager } from "./pty/session-manager.js";
 import { WorkspaceStore } from "./workspaces/store.js";
+import { KanbanStore } from "./kanban/store.js";
 
-export async function buildApp(options?: { workspaceStore?: WorkspaceStore }) {
+export async function buildApp(options?: {
+  workspaceStore?: WorkspaceStore;
+  kanbanStore?: KanbanStore;
+}) {
   const app = Fastify({ logger: true });
   const sessions = new SessionManager();
   const workspaces = options?.workspaceStore ?? new WorkspaceStore();
+  const kanban = options?.kanbanStore ?? new KanbanStore();
 
   await app.register(websocket);
 
@@ -41,6 +48,7 @@ export async function buildApp(options?: { workspaceStore?: WorkspaceStore }) {
         cols: body.cols,
         rows: body.rows,
         title: body.title,
+        initialInput: body.initialInput,
       });
       return reply.code(201).send({ session });
     } catch (err) {
@@ -110,6 +118,72 @@ export async function buildApp(options?: { workspaceStore?: WorkspaceStore }) {
     return reply.code(201).send({ workspace, sessions: created });
   });
 
+
+  app.get("/api/kanban", async () => ({ cards: kanban.list() }));
+
+  app.post<{ Body: UpsertKanbanCardRequest }>("/api/kanban/cards", async (req, reply) => {
+    try {
+      const card = kanban.upsert(req.body ?? ({} as UpsertKanbanCardRequest));
+      return reply.code(201).send({ card });
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.patch<{ Params: { id: string }; Body: UpsertKanbanCardRequest }>(
+    "/api/kanban/cards/:id",
+    async (req, reply) => {
+      const body = req.body ?? {};
+      const updated = kanban.update(req.params.id, {
+        title: body.title,
+        body: body.body,
+        column: body.column,
+        agentId: body.agentId,
+      });
+      if (!updated) return reply.code(404).send({ error: "card not found" });
+      return { card: updated };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>("/api/kanban/cards/:id", async (req, reply) => {
+    const ok = kanban.remove(req.params.id);
+    if (!ok) return reply.code(404).send({ error: "card not found" });
+    return reply.code(204).send();
+  });
+
+  app.post<{ Params: { id: string }; Body: DispatchKanbanCardRequest }>(
+    "/api/kanban/cards/:id/dispatch",
+    async (req, reply) => {
+      const card = kanban.get(req.params.id);
+      if (!card) return reply.code(404).send({ error: "card not found" });
+      const agentId = req.body?.agentId && isAgentId(req.body.agentId) ? req.body.agentId : card.agentId;
+      const prompt = [card.title, card.body].filter(Boolean).join("\n\n");
+      try {
+        const session = sessions.create({
+          agentId,
+          cwd: req.body?.cwd,
+          title: card.title,
+          initialInput: agentId === "shell" ? prompt : prompt,
+        });
+        const updated = kanban.update(card.id, {
+          column: "in_progress",
+          sessionId: session.id,
+          agentId,
+        });
+        return reply.code(201).send({ card: updated, session });
+      } catch (err) {
+        if (err instanceof AgentMissingError) {
+          return reply.code(409).send({
+            error: err.message,
+            agentId: err.agentId,
+            installHint: err.installHint,
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
   app.get<{ Params: { id: string } }>("/api/sessions/:id/ws", { websocket: true }, (socket, req) => {
     const id = req.params.id;
     const info = sessions.get(id);
@@ -166,7 +240,7 @@ export async function buildApp(options?: { workspaceStore?: WorkspaceStore }) {
     sessions.disposeAll();
   });
 
-  return { app, sessions, workspaces };
+  return { app, sessions, workspaces, kanban };
 }
 
 async function main() {

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import type { ClientMessage, ServerMessage, SessionInfo } from "@agentgrid/shared";
+import { CommandBlockTracker, type CommandBlock } from "./commandBlocks";
 import "@xterm/xterm/css/xterm.css";
 
 interface Props {
@@ -23,6 +24,9 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
+  const trackerRef = useRef(new CommandBlockTracker());
+  const [blocks, setBlocks] = useState<CommandBlock[]>([]);
+  const [showBlocks, setShowBlocks] = useState(true);
 
   const send = useCallback((message: ClientMessage) => {
     const ws = socketRef.current;
@@ -32,8 +36,17 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
   }, []);
 
   useEffect(() => {
+    const tracker = trackerRef.current;
+    return tracker.subscribe(() => setBlocks([...tracker.list]));
+  }, []);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+
+    const tracker = new CommandBlockTracker();
+    trackerRef.current = tracker;
+    const unsub = tracker.subscribe(() => setBlocks([...tracker.list]));
 
     const term = new XTerm({
       cursorBlink: true,
@@ -77,7 +90,8 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
         return;
       }
       if (msg.type === "output") {
-        term.write(msg.data);
+        const clean = tracker.feed(msg.data);
+        term.write(clean);
       } else if (msg.type === "ready") {
         onReady?.(msg.session);
         fit.fit();
@@ -90,7 +104,10 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
       }
     };
 
-    const dataDisp = term.onData((data) => send({ type: "input", data }));
+    const dataDisp = term.onData((data) => {
+      tracker.noteInput(data);
+      send({ type: "input", data });
+    });
 
     const onResize = () => {
       fit.fit();
@@ -103,25 +120,21 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
     const onCtx = (e: MouseEvent) => {
       e.preventDefault();
       const sel = term.getSelection();
-      if (sel) {
-        void navigator.clipboard.writeText(sel);
-      }
+      if (sel) void navigator.clipboard.writeText(sel);
     };
     host.addEventListener("contextmenu", onCtx);
 
     const onDrop = (e: DragEvent) => {
       e.preventDefault();
       const file = e.dataTransfer?.files?.[0];
-      if (file) {
-        // File path is not available in browsers; paste the name as a hint.
-        send({ type: "input", data: file.name });
-      }
+      if (file) send({ type: "input", data: file.name });
     };
     const onDragOver = (e: DragEvent) => e.preventDefault();
     host.addEventListener("drop", onDrop);
     host.addEventListener("dragover", onDragOver);
 
     return () => {
+      unsub();
       dataDisp.dispose();
       ro.disconnect();
       window.removeEventListener("resize", onResize);
@@ -136,5 +149,47 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
     };
   }, [sessionId, onReady, onExit, send]);
 
-  return <div className="terminal-host" ref={hostRef} />;
+  return (
+    <div className="terminal-wrap">
+      <div className="blocks-bar">
+        <button type="button" className="chip" onClick={() => setShowBlocks((v) => !v)}>
+          {showBlocks ? "Hide blocks" : "Show blocks"}
+        </button>
+        <span className="blocks-count">{blocks.length} commands</span>
+      </div>
+      {showBlocks && blocks.length > 0 && (
+        <div className="blocks-list">
+          {blocks.map((b) => (
+            <div key={b.id} className={`cmd-block status-${b.status}`}>
+              <button
+                type="button"
+                className="cmd-block-head"
+                onClick={() => trackerRef.current.toggle(b.id)}
+              >
+                <span
+                  className={
+                    b.exitCode === null
+                      ? "exit running"
+                      : b.exitCode === 0
+                        ? "exit ok"
+                        : "exit bad"
+                  }
+                >
+                  {b.status === "running" ? "●" : b.exitCode === 0 ? "✓" : "✕"}
+                </span>
+                <code>{b.command}</code>
+                <span className="exit-code">
+                  {b.exitCode === null ? "…" : `exit ${b.exitCode}`}
+                </span>
+              </button>
+              {!b.collapsed && b.output && (
+                <pre className="cmd-block-out">{b.output}</pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="terminal-host" ref={hostRef} />
+    </div>
+  );
 }

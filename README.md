@@ -23,6 +23,8 @@ Do not merge the two repos.
 - Named workspace label; layout / cwd / agent preference saved in the browser
 - Saved workspace templates on disk (`~/.agentgrid/workspaces.json`) with one-click relaunch
 - Keyboard shortcuts (⌘/Ctrl+1/2/4, Enter, S, [ ])
+- Warp-style command blocks for shell panes (OSC 133)
+- Kanban board with Dispatch → agent session
 - Session list survives browser refresh (server keeps PTYs alive until you kill them)
 
 ## Quickstart
@@ -48,9 +50,9 @@ Open **http://localhost:5318**
 - [x] **Phase 3 — Workspaces**: named workspace + browser prefs
 - [x] **Phase 3b — Workspace templates**: saved under `~/.agentgrid/workspaces.json`, open/launch from sidebar
 - [x] **Phase 4 — Keyboard shortcuts**: layout, launch, save, focus (themes still TODO)
-- [ ] **Phase 5 — Command blocks** (Warp-style)
+- [x] **Phase 5 — Command blocks** (OSC 133 markers + collapsible command list for shell panes)
 - [ ] **Phase 6 — File tree + light editor**
-- [ ] **Phase 7 — Kanban that dispatches agents**
+- [x] **Phase 7 — Kanban board** that dispatches agents into panes
 - [ ] **Phase 8 — Shared memory / MCP**
 - [ ] **Phase 9 — Swarm roles + file ownership**
 - [ ] **Phase 10 — Skills**

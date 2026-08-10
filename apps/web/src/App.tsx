@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AgentAvailability,
   AgentId,
+  KanbanCard,
+  KanbanColumn,
   LayoutPreset,
   SessionInfo,
   WorkspaceTemplate,
 } from "@agentgrid/shared";
 import { Terminal } from "./term/Terminal";
+import { KanbanBoard } from "./board/KanbanBoard";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -71,6 +74,8 @@ export function App() {
   const [layout, setLayout] = useState<LayoutPreset>(saved.layout ?? 1);
   const [workspaceName, setWorkspaceName] = useState(saved.workspaceName ?? "default");
   const [showHelp, setShowHelp] = useState(false);
+  const [view, setView] = useState<"grid" | "board">("grid");
+  const [cards, setCards] = useState<KanbanCard[]>([]);
 
   useEffect(() => {
     const payload: SavedWorkspace = { workspaceName, layout, cwd, agentId };
@@ -88,6 +93,8 @@ export function App() {
       setActiveId((prev) => prev ?? s.sessions[0]?.id ?? null);
       const w = await api<{ workspaces: WorkspaceTemplate[] }>("/api/workspaces");
       setTemplates(w.workspaces);
+      const k = await api<{ cards: KanbanCard[] }>("/api/kanban");
+      setCards(k.cards);
       setError(null);
     } catch (err) {
       setHealth("down");
@@ -261,6 +268,70 @@ export function App() {
     [sessions, activeId],
   );
 
+
+  const createCard = async (cardTitle: string, cardAgent: AgentId) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ card: KanbanCard }>("/api/kanban/cards", {
+        method: "POST",
+        body: JSON.stringify({ title: cardTitle, agentId: cardAgent }),
+      });
+      setCards((prev) => [...prev, res.card]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const moveCard = async (id: string, column: KanbanColumn) => {
+    setBusy(true);
+    try {
+      const res = await api<{ card: KanbanCard }>(`/api/kanban/cards/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ column }),
+      });
+      setCards((prev) => prev.map((c) => (c.id === id ? res.card : c)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const dispatchCard = async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ card: KanbanCard; session: SessionInfo }>(
+        `/api/kanban/cards/${id}/dispatch`,
+        { method: "POST", body: JSON.stringify({ cwd: cwd.trim() || undefined }) },
+      );
+      setCards((prev) => prev.map((c) => (c.id === id ? res.card : c)));
+      setSessions((prev) => [...prev, res.session]);
+      setActiveId(res.session.id);
+      setView("grid");
+      setLayout(2);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteCard = async (id: string) => {
+    setBusy(true);
+    try {
+      await api<void>(`/api/kanban/cards/${id}`, { method: "DELETE" });
+      setCards((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const shortcutHandlers = useMemo(
     () => ({
       onLayout: setLayout,
@@ -297,6 +368,23 @@ export function App() {
         <div className={`health health-${health}`}>
           server {health === "ok" ? "online" : health === "checking" ? "…" : "offline"}
           <span className="port-hint">:4318 / :5318</span>
+        </div>
+
+        <div className="layout-row">
+          <button
+            type="button"
+            className={view === "grid" ? "chip active" : "chip"}
+            onClick={() => setView("grid")}
+          >
+            Grid
+          </button>
+          <button
+            type="button"
+            className={view === "board" ? "chip active" : "chip"}
+            onClick={() => setView("board")}
+          >
+            Board
+          </button>
         </div>
 
         <label className="field">
@@ -485,26 +573,38 @@ export function App() {
         </p>
       </aside>
 
-      <main className={`main ${gridClass}`}>
-        {slots.map((session, i) => (
-          <section
-            key={session?.id ?? `empty-${i}`}
-            className={session && session.id === activeId ? "pane focused" : "pane"}
-            onClick={() => session && setActiveId(session.id)}
-          >
-            <header className="pane-bar">
-              <span>{session ? session.title : `Empty slot ${i + 1}`}</span>
-              {session && <span className="pane-agent">{session.agentId}</span>}
-            </header>
-            <div className="pane-body">
-              {session ? (
-                <Terminal sessionId={session.id} />
-              ) : (
-                <div className="empty-pane">Launch an agent into this slot</div>
-              )}
-            </div>
-          </section>
-        ))}
+      <main className={view === "board" ? "main board-main" : `main ${gridClass}`}>
+        {view === "board" ? (
+          <KanbanBoard
+            cards={cards}
+            agents={agents}
+            busy={busy || health !== "ok"}
+            onCreate={(t, a) => void createCard(t, a)}
+            onMove={(id, col) => void moveCard(id, col)}
+            onDispatch={(id) => void dispatchCard(id)}
+            onDelete={(id) => void deleteCard(id)}
+          />
+        ) : (
+          slots.map((session, i) => (
+            <section
+              key={session?.id ?? `empty-${i}`}
+              className={session && session.id === activeId ? "pane focused" : "pane"}
+              onClick={() => session && setActiveId(session.id)}
+            >
+              <header className="pane-bar">
+                <span>{session ? session.title : `Empty slot ${i + 1}`}</span>
+                {session && <span className="pane-agent">{session.agentId}</span>}
+              </header>
+              <div className="pane-body">
+                {session ? (
+                  <Terminal sessionId={session.id} />
+                ) : (
+                  <div className="empty-pane">Launch an agent into this slot</div>
+                )}
+              </div>
+            </section>
+          ))
+        )}
       </main>
     </div>
   );

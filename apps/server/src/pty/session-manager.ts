@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import * as pty from "node-pty";
 import { v4 as uuidv4 } from "uuid";
 import { AGENT_SPECS, type AgentId, type SessionInfo } from "@agentgrid/shared";
@@ -13,6 +15,8 @@ export interface CreateSessionOptions {
   cols?: number;
   rows?: number;
   title?: string;
+  /** Text sent to the PTY after a short delay (kanban dispatch). */
+  initialInput?: string;
 }
 
 export class AgentMissingError extends Error {
@@ -66,8 +70,29 @@ export class SessionManager extends EventEmitter {
         TERM: "xterm-256color",
         COLORTERM: "truecolor",
         AGENTGRID: "1",
+        ...(opts.agentId === "shell"
+          ? {
+              ZDOTDIR: join(
+                dirname(fileURLToPath(import.meta.url)),
+                "../../shell-integration",
+              ),
+            }
+          : {}),
       } as Record<string, string>,
     });
+
+    if (opts.initialInput && opts.initialInput.length > 0) {
+      const payload = opts.initialInput.endsWith("\n")
+        ? opts.initialInput
+        : `${opts.initialInput}\n`;
+      setTimeout(() => {
+        try {
+          term.write(payload);
+        } catch {
+          // session may already be gone
+        }
+      }, 400);
+    }
 
     const scrollback = new RingBuffer(SCROLLBACK_BYTES);
     const listeners = new Set<(data: string) => void>();

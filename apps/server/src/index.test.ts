@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { buildApp } from "./index.js";
 import type { SessionManager } from "./pty/session-manager.js";
 import { WorkspaceStore } from "./workspaces/store.js";
+import { KanbanStore } from "./kanban/store.js";
 
 describe("HTTP API", () => {
   let app: FastifyInstance;
@@ -16,6 +17,7 @@ describe("HTTP API", () => {
     tmpDir = mkdtempSync(join(tmpdir(), "agentgrid-api-ws-"));
     const built = await buildApp({
       workspaceStore: new WorkspaceStore(join(tmpDir, "workspaces.json")),
+      kanbanStore: new KanbanStore(join(tmpDir, "kanban.json")),
     });
     app = built.app;
     sessions = built.sessions;
@@ -101,6 +103,31 @@ describe("HTTP API", () => {
     for (const s of launched.sessions) {
       sessions.dispose(s.id);
     }
+  });
+
+
+  it("creates and dispatches a kanban card", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/api/kanban/cards",
+      payload: { title: "Run echo", agentId: "shell" },
+    });
+    expect(create.statusCode).toBe(201);
+    const created = create.json() as { card: { id: string } };
+
+    const dispatch = await app.inject({
+      method: "POST",
+      url: `/api/kanban/cards/${created.card.id}/dispatch`,
+      payload: {},
+    });
+    expect(dispatch.statusCode).toBe(201);
+    const body = dispatch.json() as {
+      card: { column: string; sessionId?: string };
+      session: { id: string };
+    };
+    expect(body.card.column).toBe("in_progress");
+    expect(body.session.id).toBeTruthy();
+    sessions.dispose(body.session.id);
   });
 
 });
