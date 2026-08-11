@@ -10,3 +10,8 @@ coverage
 .turbo
 *.tsbuildinfo
 .vite
+
+# Shell-integration runtime junk (ZDOTDIR points here; keep only .zshrc / zshrc)
+apps/server/shell-integration/.zcompdump*
+apps/server/shell-integration/.zsh_history
+apps/server/shell-integration/.zsh_sessions/

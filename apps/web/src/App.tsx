@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AgentAvailability,
   AgentId,
+  FsEntry,
   KanbanCard,
   KanbanColumn,
   LayoutPreset,
@@ -11,6 +12,7 @@ import type {
 import { Terminal } from "./term/Terminal";
 import { KanbanBoard } from "./board/KanbanBoard";
 import { FilesPanel } from "./files/FilesPanel";
+import { QuickOpen } from "./files/QuickOpen";
 import { MemoryPanel } from "./files/MemoryPanel";
 import { SwarmPanel } from "./swarm/SwarmPanel";
 import { SkillsPanel } from "./swarm/SkillsPanel";
@@ -91,6 +93,9 @@ export function App() {
   const [cards, setCards] = useState<KanbanCard[]>([]);
   const [inspectorOpen, setInspectorOpen] = useState(saved.inspectorOpen ?? true);
   const [dockOpen, setDockOpen] = useState(saved.dockOpen ?? false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [openPath, setOpenPath] = useState<{ root: string; path: string } | null>(null);
+  const [splitAxis, setSplitAxis] = useState<"row" | "col">("col");
 
   useEffect(() => {
     const payload: SavedWorkspace = {
@@ -403,18 +408,37 @@ export function App() {
 
   const splitFocused = useCallback(() => {
     enableFreeLayout();
+    const axis = splitAxis;
+    setSplitAxis((a) => (a === "col" ? "row" : "col"));
     setSplitTree((prev) => {
       const leaves = listLeaves(prev);
       const focused =
         leaves.find((l) => l.sessionId === activeId) ?? leaves[leaves.length - 1];
       if (!focused) {
         const seed = defaultTree([]);
-        return splitLeaf(seed, listLeaves(seed)[0]!.id, "col");
+        return splitLeaf(seed, listLeaves(seed)[0]!.id, axis);
       }
-      return splitLeaf(prev, focused.id, "col");
+      return splitLeaf(prev, focused.id, axis);
     });
     setView("grid");
-  }, [activeId, enableFreeLayout]);
+  }, [activeId, enableFreeLayout, splitAxis]);
+
+  /** Split a specific preset pane into free layout (H/V context menu). */
+  const splitPaneSession = useCallback(
+    (sessionId: string, axis: "row" | "col") => {
+      setLayoutMode("free");
+      setSplitTree(() => {
+        const tree = defaultTree(sessions.map((s) => s.id));
+        const leaves = listLeaves(tree);
+        const focused =
+          leaves.find((l) => l.sessionId === sessionId) ?? leaves[0];
+        if (!focused) return tree;
+        return splitLeaf(tree, focused.id, axis);
+      });
+      setView("grid");
+    },
+    [sessions],
+  );
 
   const sendCommand = async (text: string, target: string) => {
     const body = text.endsWith("\n") ? text : `${text}\n`;
@@ -444,8 +468,16 @@ export function App() {
       onToggleBoard: () => setView((v) => (v === "board" ? "grid" : "board")),
       onToggleSwarm: () => setView((v) => (v === "swarm" ? "grid" : "swarm")),
       onToggleInspector: () => setInspectorOpen((v) => !v),
+      onQuickOpen: () => {
+        setQuickOpen(true);
+        setDockOpen(true);
+        setView("grid");
+      },
+      onCloseSession: () => {
+        if (activeId) void killSession(activeId);
+      },
     }),
-    [createSession, saveWorkspace, focusRelative, setPresetLayout, splitFocused],
+    [createSession, saveWorkspace, focusRelative, setPresetLayout, splitFocused, activeId],
   );
 
   useKeyboardShortcuts(shortcutHandlers);
@@ -498,11 +530,43 @@ export function App() {
         >
           <header className="pane-bar">
             <span>{session ? session.title : `Empty slot ${i + 1}`}</span>
-            {session && <span className="pane-agent">{session.agentId}</span>}
+            <span className="pane-actions">
+              {session && <span className="pane-agent">{session.agentId}</span>}
+              {session && (
+                <>
+                  <button
+                    type="button"
+                    className="chip"
+                    title="Split horizontally"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      splitPaneSession(session.id, "row");
+                    }}
+                  >
+                    H
+                  </button>
+                  <button
+                    type="button"
+                    className="chip"
+                    title="Split vertically"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      splitPaneSession(session.id, "col");
+                    }}
+                  >
+                    V
+                  </button>
+                </>
+              )}
+            </span>
           </header>
           <div className="pane-body">
             {session ? (
-              <Terminal sessionId={session.id} />
+              <Terminal
+                sessionId={session.id}
+                onSplitH={() => splitPaneSession(session.id, "row")}
+                onSplitV={() => splitPaneSession(session.id, "col")}
+              />
             ) : (
               <div className="empty-pane">Launch an agent into this slot</div>
             )}
@@ -531,12 +595,21 @@ export function App() {
         onToggleInspector={() => setInspectorOpen((v) => !v)}
         dockOpen={dockOpen}
         onToggleDock={() => {
-          setDockOpen((v) => !v);
-          if (!dockOpen) setView("grid");
+          setDockOpen((v) => {
+            const next = !v;
+            if (!next && view === "files") setView("grid");
+            return next;
+          });
         }}
       />
 
-      <ActivityRail view={view} onView={setView} />
+      <ActivityRail
+        view={view}
+        onView={(v) => {
+          setView(v);
+          if (v === "files") setDockOpen(true);
+        }}
+      />
 
       <Inspector
         open={inspectorOpen}
@@ -571,6 +644,29 @@ export function App() {
       />
 
       <div className="ade-center">
+        {sessions.length > 0 && (view === "grid" || view === "files") && (
+          <div className="session-tabs">
+            {sessions.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={s.id === activeId ? "session-tab active" : "session-tab"}
+                onClick={() => setActiveId(s.id)}
+              >
+                {s.title}
+                <span
+                  className="session-tab-x"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void killSession(s.id);
+                  }}
+                >
+                  ×
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         <main
           className={
             stageIsGrid
@@ -623,7 +719,11 @@ export function App() {
 
         {showDock && view !== "browser" && (
           <aside className="files-dock">
-            <FilesPanel initialRoot={cwd.trim() || undefined} dock />
+            <FilesPanel
+              initialRoot={cwd.trim() || undefined}
+              dock
+              openPath={openPath}
+            />
           </aside>
         )}
       </div>
@@ -633,6 +733,17 @@ export function App() {
         activeSessionId={activeId}
         busy={busy || health !== "ok"}
         onSend={sendCommand}
+      />
+
+      <QuickOpen
+        open={quickOpen}
+        root={cwd.trim() || undefined}
+        onClose={() => setQuickOpen(false)}
+        onOpen={(entry: FsEntry, root: string) => {
+          setOpenPath({ root, path: entry.path });
+          setDockOpen(true);
+          setView("grid");
+        }}
       />
     </div>
   );

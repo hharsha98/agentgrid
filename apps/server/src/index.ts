@@ -28,6 +28,7 @@ import {
   readFile as readFsFile,
   writeFile as writeFsFile,
   statFile as statFsFile,
+  searchFiles as searchFsFiles,
 } from "./fs/safe-fs.js";
 import { MemoryStore, resolveMemoryDir } from "./memory/store.js";
 import { rolePrompt, SwarmStore } from "./swarm/store.js";
@@ -274,6 +275,22 @@ export async function buildApp(options?: {
 
 
   app.get("/api/fs/roots", async () => ({ roots: fsRoots }));
+
+  app.get<{ Querystring: { root?: string; q?: string } }>(
+    "/api/fs/search",
+    async (req, reply) => {
+      const root = req.query.root || fsRoots[0];
+      const q = req.query.q ?? "";
+      if (!root || !fsRoots.includes(root)) {
+        return reply.code(400).send({ error: "invalid root" });
+      }
+      try {
+        return { root, query: q, entries: searchFsFiles(root, q) };
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
 
   app.get<{ Querystring: { root?: string; path?: string } }>(
     "/api/fs/tree",

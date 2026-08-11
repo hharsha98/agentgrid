@@ -65,7 +65,11 @@ function NodeView({
         className={session && session.id === activeId ? "pane focused" : "pane"}
         onClick={() => session && onFocus(session.id)}
         onDragOver={(e) => {
-          if ([...e.dataTransfer.types].includes("application/x-agentgrid-skill")) {
+          const types = [...e.dataTransfer.types];
+          if (
+            types.includes("application/x-agentgrid-skill") ||
+            types.includes("application/x-agentgrid-path")
+          ) {
             e.preventDefault();
             e.currentTarget.classList.add("skill-drop-hover");
           }
@@ -76,6 +80,15 @@ function NodeView({
           e.currentTarget.classList.remove("skill-drop-hover");
           const skillId = e.dataTransfer.getData("application/x-agentgrid-skill");
           if (skillId && session) onSkillDrop?.(skillId, session.id);
+          const path = e.dataTransfer.getData("application/x-agentgrid-path");
+          if (path && session) {
+            void import("../lib/http").then(({ api }) =>
+              api(`/api/sessions/${session.id}/write`, {
+                method: "POST",
+                body: JSON.stringify({ data: path }),
+              }).catch(() => undefined),
+            );
+          }
         }}
       >
         <header className="pane-bar">
@@ -123,7 +136,11 @@ function NodeView({
         </header>
         <div className="pane-body">
           {session ? (
-            <Terminal sessionId={session.id} />
+            <Terminal
+              sessionId={session.id}
+              onSplitH={() => onChange(splitLeaf(root, node.id, "row"))}
+              onSplitV={() => onChange(splitLeaf(root, node.id, "col"))}
+            />
           ) : (
             <div className="empty-pane">Assign a session or launch a pane</div>
           )}

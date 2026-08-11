@@ -14,21 +14,23 @@ proprietary BridgeMind cloud products or logos.
 | Terminal-first main stage | Yes | Preset grids + free H/V splits |
 | Docked files/editor | Yes | Dock toggle or Files rail |
 | Bottom command bar | Yes | Focused / All / `@role` targets |
-| Dark CRT themes | Yes | Phosphor / Amber / Contrast |
+| Dark CRT themes | Yes | 10 themes: Phosphor, Amber, Contrast, Void, Plasma, Tokyo, Dracula, Synthwave, Carbon, Abyss |
 
 ## Core ADE loop (shipped)
 
 | BridgeSpace capability | agentgrid | Notes |
 |---|---|---|
 | Up to 16 terminal panes | Yes | Layouts 1 / 2 / 4 / 6 / 8 / 10 / 12 / 14 / 16 |
-| Freeform pane split / resize | Yes | Free mode + `⌘D` |
+| Freeform pane split / resize | Yes | Free mode + `⌘D`; H/V on preset panes switches to free |
 | GPU-accelerated xterm | Yes | WebGL when available |
-| Warp-style command blocks | Yes | OSC 133; collapse when done; click to expand |
+| Warp-style command blocks | Yes | OSC 133 via `shell-integration/.zshrc` + ZDOTDIR; collapse when done |
+| Quick Open | Yes | `⌘P` + `GET /api/fs/search` |
+| Session tab strip | Yes | Click to focus; `⌘W` close, `⌘T` / `⌘N` new |
 | Workspaces / templates | Yes | `~/.agentgrid/workspaces.json` |
 | Kanban → dispatch agent | Yes | Drag + Dispatch; session title on card |
 | Agent ↔ kanban auto status | Yes | Exit → `done` / `in_review` |
-| File browser + code editor | Yes | Monaco + dock |
-| File watch in editor | Yes | mtime poll + Reload |
+| File browser + code editor | Yes | Monaco + dock; nested expand; editor tabs |
+| File watch in editor | Yes | mtime poll; auto-reload when clean; Reload when dirty |
 | Drag path onto terminal | Yes | From files tree |
 | Skills on panes | Yes | Apply or drag |
 | Prompts library | Yes | Save / apply / delete |
@@ -39,7 +41,7 @@ proprietary BridgeMind cloud products or logos.
 | Shared memory / MCP | Yes | `~/.agentgrid/memory` or `{cwd}/.agentgrid-memory` + `[[links]]` |
 | Embedded localhost browser | Yes | Sandboxed iframe review pane |
 | Native desktop (Tauri) | Yes | Auto-starts API on :4318 |
-| Keyboard-first | Yes | `⌘N` new, `⌘D` split, `⌘B` board, `⌘⇧S` swarm, `⌘F` search |
+| Keyboard-first | Yes | `⌘N`/`⌘T` new, `⌘W` close, `⌘D` split, `⌘P` quick open, `⌘B` board, `⌘⇧S` swarm, `⌘,` inspector |
 
 ## Intentionally out of scope (proprietary / cloud)
 
@@ -53,11 +55,13 @@ proprietary BridgeMind cloud products or logos.
 | BridgeShot | No |
 | Paid / freemium cloud billing | No |
 | Inline terminal image protocols | Not implemented |
+| Exact BridgeSpace theme name catalog (25+) | Closest local set of 10 |
 
 ## Soft gaps
 
 1. Windows/Linux desktop packaging polish beyond macOS `.app`
 2. Deeper terminal image / graphics protocol support
 3. Multi-level mission trees beyond one child level
+4. Multi-workspace tab strip like BridgeSpace Pro (we use session tabs, not workspace tabs)
 
-Updated as of the ADE visual/structural clone pass.
+Updated after full local ADE functionality audit (command blocks, quick open, nested files tree, preset H/V split).

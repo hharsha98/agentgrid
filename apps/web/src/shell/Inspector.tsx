@@ -226,7 +226,9 @@ export function Inspector(p: InspectorProps) {
       </button>
       {p.showHelp && (
         <pre className="help">
-{`⌘/Ctrl+N         new pane
+{`⌘/Ctrl+N|T      new pane
+⌘/Ctrl+W         close session
+⌘/Ctrl+P         quick open file
 ⌘/Ctrl+D         split focused (free)
 ⌘/Ctrl+B         board
 ⌘/Ctrl+Shift+S   swarm

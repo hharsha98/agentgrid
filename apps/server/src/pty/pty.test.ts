@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { RingBuffer } from "./ring-buffer.js";
 import { detectAgents, resolveAgent } from "./agents.js";
 
@@ -27,5 +30,13 @@ describe("agents", () => {
 
   it("resolves shell", () => {
     expect(resolveAgent("shell")).not.toBeNull();
+  });
+});
+
+describe("shell integration", () => {
+  it("ships .zshrc so ZDOTDIR loads OSC 133 hooks", () => {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const zshrc = join(dir, "../../shell-integration/.zshrc");
+    expect(existsSync(zshrc)).toBe(true);
   });
 });

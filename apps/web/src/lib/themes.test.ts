@@ -37,15 +37,13 @@ describe("themes", () => {
 
   it("validates theme ids", () => {
     expect(isThemeId("phosphor")).toBe(true);
-    expect(isThemeId("amber")).toBe(true);
-    expect(isThemeId("contrast")).toBe(true);
+    expect(isThemeId("tokyo")).toBe(true);
     expect(isThemeId("neon")).toBe(false);
   });
 
-  it("cycles phosphor → amber → contrast → phosphor", () => {
+  it("cycles through the theme list", () => {
     expect(cycleTheme("phosphor")).toBe("amber");
-    expect(cycleTheme("amber")).toBe("contrast");
-    expect(cycleTheme("contrast")).toBe("phosphor");
+    expect(cycleTheme("abyss")).toBe("phosphor");
   });
 
   it("applies data-theme and persists", () => {
@@ -54,6 +52,6 @@ describe("themes", () => {
       .document;
     expect(doc.documentElement.dataset.theme).toBe("amber");
     expect(loadTheme()).toBe("amber");
-    expect(THEME_IDS).toHaveLength(3);
+    expect(THEME_IDS.length).toBeGreaterThanOrEqual(10);
   });
 });

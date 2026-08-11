@@ -39,6 +39,10 @@ function shellSpec(): AgentSpec {
       args: [],
     };
   }
+  // Prefer zsh so agentgrid OSC 133 hooks in shell-integration/.zshrc load via ZDOTDIR.
+  if (which("zsh")) {
+    return { ...AGENT_SPECS.shell, command: "zsh", args: ["-l"] };
+  }
   const fromEnv = process.env.SHELL;
   if (fromEnv && which(fromEnv)) {
     return { ...AGENT_SPECS.shell, command: fromEnv, args: ["-l"] };

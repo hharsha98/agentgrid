@@ -14,6 +14,8 @@ export interface ShortcutHandlers {
   onToggleBoard?: () => void;
   onToggleSwarm?: () => void;
   onToggleInspector?: () => void;
+  onQuickOpen?: () => void;
+  onCloseSession?: () => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -22,20 +24,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-/**
- * Keyboard shortcuts (macOS-friendly: Meta, also Ctrl):
- * - Meta/Ctrl+N → new pane
- * - Meta/Ctrl+D → split focused (free mode)
- * - Meta/Ctrl+B → toggle board
- * - Meta/Ctrl+Shift+S → toggle swarm
- * - Meta/Ctrl+, → toggle inspector
- * - Meta/Ctrl+1|2|4|0 → layout (0 = 16)
- * - Meta/Ctrl+Enter → launch pane
- * - Meta/Ctrl+S → save workspace template
- * - Meta/Ctrl+] / [ → next / previous session
- * - Meta/Ctrl+Shift+T → cycle theme
- * - ? → toggle help (when not typing)
- */
 export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -48,10 +36,18 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
       }
 
       if (!mod) return;
-
       const key = e.key.toLowerCase();
 
-      if (key === "n" && !e.shiftKey) {
+      if (key === "p" && !e.shiftKey) {
+        e.preventDefault();
+        handlers.onQuickOpen?.();
+      } else if (key === "w" && !e.shiftKey) {
+        e.preventDefault();
+        handlers.onCloseSession?.();
+      } else if (key === "t" && !e.shiftKey) {
+        e.preventDefault();
+        handlers.onNewPane?.();
+      } else if (key === "n" && !e.shiftKey) {
         e.preventDefault();
         handlers.onNewPane?.();
       } else if (key === "d" && !e.shiftKey) {
