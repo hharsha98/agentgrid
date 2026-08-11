@@ -236,6 +236,7 @@ export function Inspector(p: InspectorProps) {
 ⌘/Ctrl+,         toggle inspector
 ⌘/Ctrl+1|2|4|0   preset layout
 ⌘/Ctrl+F         terminal search
+Top bar +       workspace tabs (local)
 ?                this help`}
         </pre>
       )}

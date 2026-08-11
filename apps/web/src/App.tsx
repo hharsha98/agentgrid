@@ -39,6 +39,12 @@ import { ActivityRail } from "./shell/ActivityRail";
 import { Inspector } from "./shell/Inspector";
 import { CommandBar } from "./shell/CommandBar";
 import type { AppView } from "./shell/types";
+import {
+  createEmptyWorkspace,
+  loadOpenWorkspaces,
+  saveOpenWorkspaces,
+  type OpenWorkspace,
+} from "./shell/workspaceTabs";
 
 const STORAGE_KEY = "agentgrid.workspace.v1";
 
@@ -97,6 +103,75 @@ export function App() {
   const [openPath, setOpenPath] = useState<{ root: string; path: string } | null>(null);
   const [splitAxis, setSplitAxis] = useState<"row" | "col">("col");
 
+  const [bootTabs] = useState(() =>
+    loadOpenWorkspaces(saved.workspaceName ?? "default"),
+  );
+  const [workspaceTabs, setWorkspaceTabs] = useState<OpenWorkspace[]>(bootTabs.tabs);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(bootTabs.activeId);
+
+  const snapshotActive = useCallback((): OpenWorkspace => {
+    return {
+      id: activeWorkspaceId,
+      name: workspaceName,
+      sessionIds:
+        workspaceTabs.find((w) => w.id === activeWorkspaceId)?.sessionIds ?? [],
+      layout,
+      layoutMode,
+      splitTree,
+      cwd,
+      agentId,
+      activeId,
+    };
+  }, [
+    activeWorkspaceId,
+    workspaceName,
+    workspaceTabs,
+    layout,
+    layoutMode,
+    splitTree,
+    cwd,
+    agentId,
+    activeId,
+  ]);
+
+  const ownedIds = useMemo(() => {
+    return (
+      workspaceTabs.find((w) => w.id === activeWorkspaceId)?.sessionIds ?? []
+    );
+  }, [workspaceTabs, activeWorkspaceId]);
+
+  const visibleSessions = useMemo(
+    () => sessions.filter((s) => ownedIds.includes(s.id)),
+    [sessions, ownedIds],
+  );
+
+  const claimSessions = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      setWorkspaceTabs((prev) =>
+        prev.map((w) =>
+          w.id === activeWorkspaceId
+            ? {
+                ...w,
+                sessionIds: [...new Set([...w.sessionIds, ...ids])],
+              }
+            : w,
+        ),
+      );
+    },
+    [activeWorkspaceId],
+  );
+
+  const dropSessionFromTabs = useCallback((id: string) => {
+    setWorkspaceTabs((prev) =>
+      prev.map((w) => ({
+        ...w,
+        sessionIds: w.sessionIds.filter((x) => x !== id),
+        activeId: w.activeId === id ? null : w.activeId,
+      })),
+    );
+  }, []);
+
   useEffect(() => {
     const payload: SavedWorkspace = {
       workspaceName,
@@ -112,9 +187,66 @@ export function App() {
   }, [workspaceName, layout, layoutMode, splitTree, cwd, agentId, inspectorOpen, dockOpen]);
 
   useEffect(() => {
+    const tabs = workspaceTabs.map((w) =>
+      w.id === activeWorkspaceId
+        ? {
+            ...w,
+            name: workspaceName,
+            layout,
+            layoutMode,
+            splitTree,
+            cwd,
+            agentId,
+            activeId,
+          }
+        : w,
+    );
+    saveOpenWorkspaces(tabs, activeWorkspaceId);
+  }, [
+    workspaceTabs,
+    activeWorkspaceId,
+    workspaceName,
+    layout,
+    layoutMode,
+    splitTree,
+    cwd,
+    agentId,
+    activeId,
+  ]);
+
+
+  // Assign orphan sessions (e.g. after refresh) to the active workspace
+  useEffect(() => {
+    setWorkspaceTabs((prev) => {
+      const claimed = new Set(prev.flatMap((w) => w.sessionIds));
+      const orphans = sessions.map((s) => s.id).filter((id) => !claimed.has(id));
+      if (orphans.length === 0) return prev;
+      return prev.map((w) =>
+        w.id === activeWorkspaceId
+          ? { ...w, sessionIds: [...w.sessionIds, ...orphans] }
+          : w,
+      );
+    });
+  }, [sessions, activeWorkspaceId]);
+
+  // Drop dead session ids from tabs
+  useEffect(() => {
+    const live = new Set(sessions.map((s) => s.id));
+    setWorkspaceTabs((prev) => {
+      let changed = false;
+      const next = prev.map((w) => {
+        const sessionIds = w.sessionIds.filter((id) => live.has(id));
+        if (sessionIds.length !== w.sessionIds.length) changed = true;
+        return sessionIds.length === w.sessionIds.length ? w : { ...w, sessionIds };
+      });
+      return changed ? next : prev;
+    });
+  }, [sessions]);
+
+  useEffect(() => {
     if (layoutMode !== "free") return;
-    setSplitTree((prev) => fillEmptyLeaves(prev, sessions.map((s) => s.id)));
-  }, [sessions, layoutMode]);
+    setSplitTree((prev) => fillEmptyLeaves(prev, visibleSessions.map((s) => s.id)));
+  }, [visibleSessions, layoutMode]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -185,6 +317,7 @@ export function App() {
     try {
       const session = await createOne(agentId, title);
       setSessions((prev) => [...prev, session]);
+      claimSessions([session.id]);
       setActiveId(session.id);
       setTitle("");
       setView("grid");
@@ -193,7 +326,7 @@ export function App() {
     } finally {
       setBusy(false);
     }
-  }, [agentId, title, cwd]);
+  }, [agentId, title, cwd, claimSessions]);
 
   const launchPreset = async (ids: AgentId[], name: string) => {
     setBusy(true);
@@ -214,6 +347,7 @@ export function App() {
         created.push(await createOne(id, `${name} · ${label}`));
       }
       setSessions((prev) => [...prev, ...created]);
+      claimSessions(created.map((s) => s.id));
       setActiveId(created[0]?.id ?? null);
       setView("grid");
     } catch (err) {
@@ -251,6 +385,64 @@ export function App() {
     }
   }, [sessions, agentId, title, workspaceName, cwd, layout]);
 
+  const applyWorkspaceSnap = (snap: OpenWorkspace) => {
+    setActiveWorkspaceId(snap.id);
+    setWorkspaceName(snap.name);
+    setLayout(snap.layout);
+    setLayoutMode(snap.layoutMode);
+    setSplitTree(snap.splitTree);
+    setCwd(snap.cwd);
+    setAgentId(snap.agentId);
+    setActiveId(snap.activeId);
+  };
+
+  const selectWorkspace = (id: string) => {
+    if (id === activeWorkspaceId) return;
+    const current = snapshotActive();
+    const updated = workspaceTabs.map((w) =>
+      w.id === activeWorkspaceId ? current : w,
+    );
+    const target = updated.find((w) => w.id === id);
+    if (!target) return;
+    setWorkspaceTabs(updated);
+    applyWorkspaceSnap(target);
+    setView("grid");
+  };
+
+  const newWorkspaceTab = () => {
+    const current = snapshotActive();
+    const blank = createEmptyWorkspace(`Workspace ${workspaceTabs.length + 1}`, {
+      cwd,
+      agentId,
+    });
+    const updated = workspaceTabs.map((w) =>
+      w.id === activeWorkspaceId ? current : w,
+    );
+    setWorkspaceTabs([...updated, blank]);
+    applyWorkspaceSnap(blank);
+    setView("grid");
+  };
+
+  const closeWorkspaceTab = (id: string) => {
+    if (workspaceTabs.length <= 1) return;
+    const current = snapshotActive();
+    const base = workspaceTabs.map((w) =>
+      w.id === activeWorkspaceId ? current : w,
+    );
+    const next = base.filter((w) => w.id !== id);
+    setWorkspaceTabs(next);
+    if (id === activeWorkspaceId) {
+      applyWorkspaceSnap(next[0]!);
+    }
+  };
+
+  const renameWorkspace = (name: string) => {
+    setWorkspaceName(name);
+    setWorkspaceTabs((prev) =>
+      prev.map((w) => (w.id === activeWorkspaceId ? { ...w, name } : w)),
+    );
+  };
+
   const openWorkspace = async (id: string) => {
     setBusy(true);
     setError(null);
@@ -259,12 +451,24 @@ export function App() {
         workspace: WorkspaceTemplate;
         sessions: SessionInfo[];
       }>(`/api/workspaces/${id}/launch`, { method: "POST" });
-      setWorkspaceName(res.workspace.name);
-      setLayoutMode("preset");
-      setLayout(res.workspace.layout);
-      setCwd(res.workspace.cwd ?? "");
+      const current = snapshotActive();
+      const tab = createEmptyWorkspace(res.workspace.name, {
+        name: res.workspace.name,
+        sessionIds: res.sessions.map((s) => s.id),
+        layout: res.workspace.layout,
+        layoutMode: "preset",
+        splitTree: defaultTree(res.sessions.map((s) => s.id)),
+        cwd: res.workspace.cwd ?? "",
+        agentId,
+        activeId: res.sessions[0]?.id ?? null,
+      });
+      const updated = [
+        ...workspaceTabs.map((w) => (w.id === activeWorkspaceId ? current : w)),
+        tab,
+      ];
+      setWorkspaceTabs(updated);
       setSessions((prev) => [...prev, ...res.sessions]);
-      setActiveId(res.sessions[0]?.id ?? null);
+      applyWorkspaceSnap(tab);
       setView("grid");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -290,6 +494,7 @@ export function App() {
     try {
       await api<void>(`/api/sessions/${id}`, { method: "DELETE" });
       setSessions((prev) => prev.filter((s) => s.id !== id));
+      dropSessionFromTabs(id);
       setActiveId((prev) => (prev === id ? null : prev));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -300,15 +505,16 @@ export function App() {
 
   const focusRelative = useCallback(
     (delta: number) => {
-      if (sessions.length === 0) return;
+      if (visibleSessions.length === 0) return;
       const idx = Math.max(
         0,
-        sessions.findIndex((s) => s.id === activeId),
+        visibleSessions.findIndex((s) => s.id === activeId),
       );
-      const next = sessions[(idx + delta + sessions.length) % sessions.length];
+      const next =
+        visibleSessions[(idx + delta + visibleSessions.length) % visibleSessions.length];
       if (next) setActiveId(next.id);
     },
-    [sessions, activeId],
+    [visibleSessions, activeId],
   );
 
   const applySkillToSession = async (skillId: string, sessionId: string) => {
@@ -374,6 +580,7 @@ export function App() {
       );
       setCards((prev) => prev.map((c) => (c.id === id ? res.card : c)));
       setSessions((prev) => [...prev, res.session]);
+      claimSessions([res.session.id]);
       setActiveId(res.session.id);
       setView("grid");
       setPresetLayout(2);
@@ -399,12 +606,12 @@ export function App() {
   const enableFreeLayout = useCallback(() => {
     setLayoutMode("free");
     setSplitTree((prev) => {
-      if (prev.type === "leaf" && !prev.sessionId && sessions.length > 0) {
-        return defaultTree(sessions.map((s) => s.id));
+      if (prev.type === "leaf" && !prev.sessionId && visibleSessions.length > 0) {
+        return defaultTree(visibleSessions.map((s) => s.id));
       }
-      return fillEmptyLeaves(prev, sessions.map((s) => s.id));
+      return fillEmptyLeaves(prev, visibleSessions.map((s) => s.id));
     });
-  }, [sessions]);
+  }, [visibleSessions]);
 
   const splitFocused = useCallback(() => {
     enableFreeLayout();
@@ -428,7 +635,7 @@ export function App() {
     (sessionId: string, axis: "row" | "col") => {
       setLayoutMode("free");
       setSplitTree(() => {
-        const tree = defaultTree(sessions.map((s) => s.id));
+        const tree = defaultTree(visibleSessions.map((s) => s.id));
         const leaves = listLeaves(tree);
         const focused =
           leaves.find((l) => l.sessionId === sessionId) ?? leaves[0];
@@ -437,7 +644,7 @@ export function App() {
       });
       setView("grid");
     },
-    [sessions],
+    [visibleSessions],
   );
 
   const sendCommand = async (text: string, target: string) => {
@@ -482,7 +689,7 @@ export function App() {
 
   useKeyboardShortcuts(shortcutHandlers);
 
-  const slots = splitIds(sessions, layout);
+  const slots = splitIds(visibleSessions, layout);
   const gridClass = layoutMode === "free" ? "grid-free" : `grid-${layout}`;
   const showDock = dockOpen || view === "files";
   const stageIsGrid = view === "grid" || view === "files";
@@ -491,7 +698,7 @@ export function App() {
     layoutMode === "free" ? (
       <SplitLayout
         tree={splitTree}
-        sessions={sessions}
+        sessions={visibleSessions}
         activeId={activeId}
         onChange={setSplitTree}
         onFocus={setActiveId}
@@ -586,8 +793,14 @@ export function App() {
         .join(" ")}
     >
       <TopBar
-        workspaceName={workspaceName}
-        onWorkspaceName={setWorkspaceName}
+        workspaces={workspaceTabs.map((w) =>
+          w.id === activeWorkspaceId ? { ...w, name: workspaceName } : w,
+        )}
+        activeWorkspaceId={activeWorkspaceId}
+        onSelectWorkspace={selectWorkspace}
+        onRenameWorkspace={renameWorkspace}
+        onNewWorkspace={newWorkspaceTab}
+        onCloseWorkspace={closeWorkspaceTab}
         health={health}
         theme={theme}
         onTheme={setTheme}
@@ -635,7 +848,7 @@ export function App() {
         templates={templates}
         onOpenWorkspace={(id) => void openWorkspace(id)}
         onDeleteWorkspace={(id) => void deleteWorkspace(id)}
-        sessions={sessions}
+        sessions={visibleSessions}
         activeId={activeId}
         onFocusSession={setActiveId}
         onKillSession={(id) => void killSession(id)}
@@ -644,15 +857,16 @@ export function App() {
       />
 
       <div className="ade-center">
-        {sessions.length > 0 && (view === "grid" || view === "files") && (
+        {visibleSessions.length > 0 && (view === "grid" || view === "files") && (
           <div className="session-tabs">
-            {sessions.map((s) => (
+            {visibleSessions.map((s) => (
               <button
                 key={s.id}
                 type="button"
                 className={s.id === activeId ? "session-tab active" : "session-tab"}
                 onClick={() => setActiveId(s.id)}
               >
+                <span className="session-tab-agent">{s.agentId}</span>
                 {s.title}
                 <span
                   className="session-tab-x"
@@ -677,7 +891,7 @@ export function App() {
           {view === "board" ? (
             <KanbanBoard
               cards={cards}
-              sessions={sessions}
+              sessions={visibleSessions}
               agents={agents}
               busy={busy || health !== "ok"}
               onCreate={(t, a, body) => void createCard(t, a, body)}
@@ -700,13 +914,13 @@ export function App() {
             />
           ) : view === "skills" ? (
             <SkillsPanel
-              sessions={sessions}
+              sessions={visibleSessions}
               activeSessionId={activeId}
               busy={busy || health !== "ok"}
             />
           ) : view === "prompts" ? (
             <PromptsPanel
-              sessions={sessions}
+              sessions={visibleSessions}
               activeSessionId={activeId}
               busy={busy || health !== "ok"}
             />
@@ -729,7 +943,7 @@ export function App() {
       </div>
 
       <CommandBar
-        sessions={sessions}
+        sessions={visibleSessions}
         activeSessionId={activeId}
         busy={busy || health !== "ok"}
         onSend={sendCommand}

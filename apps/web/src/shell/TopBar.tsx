@@ -1,9 +1,14 @@
 import type { ThemeId } from "../lib/themes";
 import { THEME_IDS, THEME_LABELS } from "../lib/themes";
+import type { OpenWorkspace } from "./workspaceTabs";
 
 interface Props {
-  workspaceName: string;
-  onWorkspaceName: (name: string) => void;
+  workspaces: OpenWorkspace[];
+  activeWorkspaceId: string;
+  onSelectWorkspace: (id: string) => void;
+  onRenameWorkspace: (name: string) => void;
+  onNewWorkspace: () => void;
+  onCloseWorkspace: (id: string) => void;
   health: "checking" | "ok" | "down";
   theme: ThemeId;
   onTheme: (id: ThemeId) => void;
@@ -14,8 +19,12 @@ interface Props {
 }
 
 export function TopBar({
-  workspaceName,
-  onWorkspaceName,
+  workspaces,
+  activeWorkspaceId,
+  onSelectWorkspace,
+  onRenameWorkspace,
+  onNewWorkspace,
+  onCloseWorkspace,
   health,
   theme,
   onTheme,
@@ -24,40 +33,82 @@ export function TopBar({
   dockOpen,
   onToggleDock,
 }: Props) {
+  const active = workspaces.find((w) => w.id === activeWorkspaceId);
+
   return (
     <header className="top-bar">
-      <div className="top-brand">
+      <div className="top-brand" title="agentgrid">
         <div className="brand-mark">AG</div>
         <div className="brand-name">agentgrid</div>
       </div>
 
+      <div className="workspace-tabs" role="tablist" aria-label="Workspaces">
+        {workspaces.map((w) => (
+          <button
+            key={w.id}
+            type="button"
+            role="tab"
+            aria-selected={w.id === activeWorkspaceId}
+            className={w.id === activeWorkspaceId ? "workspace-tab active" : "workspace-tab"}
+            onClick={() => onSelectWorkspace(w.id)}
+            title={w.name}
+          >
+            <span className="workspace-tab-label">{w.name}</span>
+            {workspaces.length > 1 && (
+              <span
+                className="workspace-tab-x"
+                title="Close workspace tab"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseWorkspace(w.id);
+                }}
+              >
+                ×
+              </span>
+            )}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="workspace-tab new"
+          onClick={onNewWorkspace}
+          title="New workspace tab"
+          aria-label="New workspace tab"
+        >
+          +
+        </button>
+      </div>
+
       <label className="top-workspace">
-        <span className="sr-only">Workspace</span>
+        <span className="sr-only">Rename workspace</span>
         <input
-          value={workspaceName}
-          onChange={(e) => onWorkspaceName(e.target.value)}
+          value={active?.name ?? ""}
+          onChange={(e) => onRenameWorkspace(e.target.value)}
           placeholder="Workspace name"
         />
       </label>
 
       <div className={`health health-${health}`}>
+        <span className="health-dot" aria-hidden />
         {health === "ok" ? "online" : health === "checking" ? "…" : "offline"}
         <span className="port-hint">:4318</span>
       </div>
 
       <div className="top-actions">
-        <div className="layout-row">
-          {THEME_IDS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              className={theme === id ? "chip active" : "chip"}
-              onClick={() => onTheme(id)}
-            >
-              {THEME_LABELS[id]}
-            </button>
-          ))}
-        </div>
+        <label className="theme-select">
+          <span className="sr-only">Theme</span>
+          <select
+            value={theme}
+            onChange={(e) => onTheme(e.target.value as ThemeId)}
+            aria-label="Theme"
+          >
+            {THEME_IDS.map((id) => (
+              <option key={id} value={id}>
+                {THEME_LABELS[id]}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           className={dockOpen ? "chip active" : "chip"}

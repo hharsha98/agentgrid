@@ -5,6 +5,18 @@ interface Props {
   onView: (view: AppView) => void;
 }
 
+/** Simple geometric marks — not BridgeMind icons. */
+const RAIL_MARK: Record<AppView, string> = {
+  grid: "▦",
+  board: "▥",
+  swarm: "◈",
+  files: "▤",
+  memory: "◉",
+  skills: "✦",
+  prompts: "✎",
+  browser: "◎",
+};
+
 export function ActivityRail({ view, onView }: Props) {
   return (
     <nav className="activity-rail" aria-label="Main views">
@@ -17,7 +29,9 @@ export function ActivityRail({ view, onView }: Props) {
           title={v.label}
           aria-current={view === v.id ? "page" : undefined}
         >
-          <span className="rail-short">{v.short}</span>
+          <span className="rail-mark" aria-hidden>
+            {RAIL_MARK[v.id]}
+          </span>
           <span className="rail-label">{v.label}</span>
         </button>
       ))}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SessionInfo } from "@agentgrid/shared";
 
 interface Props {
@@ -13,6 +13,12 @@ export function CommandBar({ sessions, activeSessionId, busy, onSend }: Props) {
   const [target, setTarget] = useState(activeSessionId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [followFocus, setFollowFocus] = useState(true);
+
+  useEffect(() => {
+    if (!followFocus) return;
+    if (activeSessionId) setTarget(activeSessionId);
+  }, [activeSessionId, followFocus]);
 
   const submit = async () => {
     const body = text.trim();
@@ -34,7 +40,10 @@ export function CommandBar({ sessions, activeSessionId, busy, onSend }: Props) {
       <select
         className="command-target"
         value={target || activeSessionId || "*"}
-        onChange={(e) => setTarget(e.target.value)}
+        onChange={(e) => {
+          setFollowFocus(false);
+          setTarget(e.target.value);
+        }}
         aria-label="Command target"
       >
         <option value="*">All panes</option>
@@ -52,7 +61,7 @@ export function CommandBar({ sessions, activeSessionId, busy, onSend }: Props) {
         className="command-input"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Steer agents…  (@role or All)"
+        placeholder="Steer agents…  Enter to send"
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
