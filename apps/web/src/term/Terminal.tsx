@@ -14,9 +14,11 @@ interface Props {
   sessionId: string;
   onReady?: (session: SessionInfo) => void;
   onExit?: (code: number | null) => void;
+  onSplitH?: () => void;
+  onSplitV?: () => void;
 }
 
-export function Terminal({ sessionId, onReady, onExit }: Props) {
+export function Terminal({ sessionId, onReady, onExit, onSplitH, onSplitV }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<XTerm | null>(null);
@@ -138,8 +140,15 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
         }).catch(() => undefined);
         return;
       }
+      const path =
+        e.dataTransfer?.getData("application/x-agentgrid-path") ||
+        e.dataTransfer?.getData("text/plain");
+      if (path && !path.includes("\n")) {
+        send({ type: "input", data: path });
+        return;
+      }
       const file = e.dataTransfer?.files?.[0];
-      if (file) send({ type: "input", data: file.name });
+      if (file) send({ type: "input", data: (file as File & { path?: string }).path || file.name });
     };
     const onDragOver = (e: DragEvent) => e.preventDefault();
     host.addEventListener("drop", onDrop);
@@ -320,6 +329,30 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
           >
             Clear
           </button>
+          {onSplitH && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                onSplitH();
+                setMenu(null);
+              }}
+            >
+              Split horizontal
+            </button>
+          )}
+          {onSplitV && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                onSplitV();
+                setMenu(null);
+              }}
+            >
+              Split vertical
+            </button>
+          )}
           <button type="button" className="secondary" onClick={() => setMenu(null)}>
             Close
           </button>

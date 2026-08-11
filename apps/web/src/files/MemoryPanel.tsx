@@ -3,7 +3,11 @@ import type { MemoryNote } from "@agentgrid/shared";
 import { api } from "../lib/http";
 
 
-export function MemoryPanel() {
+interface Props {
+  cwd?: string;
+}
+
+export function MemoryPanel({ cwd }: Props) {
   const [notes, setNotes] = useState<MemoryNote[]>([]);
   const [directory, setDirectory] = useState("");
   const [active, setActive] = useState<MemoryNote | null>(null);
@@ -12,16 +16,19 @@ export function MemoryPanel() {
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [links, setLinks] = useState<{ from: string; to: string }[]>([])
 
   const refresh = async () => {
-    const res = await api<{ notes: MemoryNote[]; directory: string }>("/api/memory");
+    const q = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
+    const res = await api<{ notes: MemoryNote[]; directory: string; links?: { from: string; to: string }[] }>(`/api/memory${q}`);
     setNotes(res.notes);
     setDirectory(res.directory);
+    setLinks(res.links ?? []);
   };
 
   useEffect(() => {
     void refresh().catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  }, []);
+  }, [cwd]);
 
   const open = (note: MemoryNote) => {
     setActive(note);
@@ -36,7 +43,7 @@ export function MemoryPanel() {
     try {
       const res = await api<{ note: MemoryNote }>("/api/memory", {
         method: "POST",
-        body: JSON.stringify({ title: title.trim() || "Untitled note" }),
+        body: JSON.stringify({ title: title.trim() || "Untitled note", cwd }),
       });
       await refresh();
       open(res.note);
@@ -54,7 +61,7 @@ export function MemoryPanel() {
     try {
       const res = await api<{ note: MemoryNote }>("/api/memory", {
         method: "POST",
-        body: JSON.stringify({ id: active.id, title, content: draft }),
+        body: JSON.stringify({ id: active.id, title, content: draft, cwd }),
       });
       setActive(res.note);
       setDirty(false);
@@ -69,7 +76,7 @@ export function MemoryPanel() {
   const remove = async (id: string) => {
     setBusy(true);
     try {
-      await api<void>(`/api/memory/${id}`, { method: "DELETE" });
+      await api<void>(`/api/memory/${id}${cwd ? `?cwd=${encodeURIComponent(cwd)}` : ""}`, { method: "DELETE" });
       if (active?.id === id) {
         setActive(null);
         setDraft("");
@@ -101,6 +108,15 @@ export function MemoryPanel() {
         </button>
       </div>
       <div className="memory-dir">{directory || "…"}</div>
+      {links.length > 0 && (
+        <div className="memory-links">
+          {links.map((l, i) => (
+            <div key={i} className="session-meta">
+              [[{l.from}]] → [[{l.to}]]
+            </div>
+          ))}
+        </div>
+      )}
       {error && <pre className="error">{error}</pre>}
       <div className="memory-body">
         <aside className="memory-list">

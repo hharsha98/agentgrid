@@ -5,6 +5,8 @@ import { api } from "../lib/http";
 
 interface Props {
   initialRoot?: string;
+  /** Compact dock mode: still shows tree + editor beside the grid. */
+  dock?: boolean;
 }
 
 function languageForPath(path: string): string {
@@ -32,7 +34,7 @@ function monacoTheme(): string {
   return "vs-dark";
 }
 
-export function FilesPanel({ initialRoot }: Props) {
+export function FilesPanel({ initialRoot, dock }: Props) {
   const [roots, setRoots] = useState<string[]>([]);
   const [root, setRoot] = useState(initialRoot ?? "");
   const [cwd, setCwd] = useState(".");
@@ -168,7 +170,7 @@ export function FilesPanel({ initialRoot }: Props) {
   );
 
   return (
-    <div className="files-panel">
+    <div className={dock ? "files-panel dock" : "files-panel"}>
       <div className="files-toolbar">
         <select
           value={root}
@@ -207,6 +209,14 @@ export function FilesPanel({ initialRoot }: Props) {
               key={e.path}
               type="button"
               className={file?.path === e.path ? "files-item active" : "files-item"}
+              draggable={e.type === "file"}
+              onDragStart={(ev) => {
+                if (e.type !== "file") return;
+                const abs = root.endsWith("/") ? `${root}${e.path}` : `${root}/${e.path}`;
+                ev.dataTransfer.setData("application/x-agentgrid-path", abs);
+                ev.dataTransfer.setData("text/plain", abs);
+                ev.dataTransfer.effectAllowed = "copy";
+              }}
               onClick={() => void openEntry(e)}
             >
               <span className="files-kind">{e.type === "dir" ? "DIR" : "FILE"}</span>

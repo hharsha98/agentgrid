@@ -251,9 +251,19 @@
   grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
+.grid-10 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
 .grid-12 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+.grid-14 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
 .grid-16 {
@@ -326,7 +336,9 @@
   .grid-4,
   .grid-6,
   .grid-8,
+  .grid-10,
   .grid-12,
+  .grid-14,
   .grid-16 {
     grid-template-columns: 1fr;
     grid-template-rows: repeat(auto-fit, minmax(220px, 1fr));
@@ -1078,3 +1090,297 @@
   background: color-mix(in oklab, var(--warn) 12%, transparent);
   font-size: 0.78rem;
 }
+
+
+/* ===== ADE shell (BridgeSpace-like chrome) ===== */
+.ade-shell {
+  display: grid;
+  grid-template-columns: 56px 0fr 1fr;
+  grid-template-rows: 48px 1fr auto;
+  height: 100%;
+  min-height: 100vh;
+  transition: grid-template-columns 180ms ease;
+}
+
+.ade-shell.inspector-open {
+  grid-template-columns: 56px 260px 1fr;
+}
+
+.inspector.collapsed {
+  display: block;
+  padding: 0;
+  border: none;
+  overflow: hidden;
+  width: 0;
+  min-width: 0;
+}
+
+.top-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg-elevated) 94%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.top-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.top-brand .brand-mark {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.7rem;
+}
+
+.top-brand .brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.top-workspace {
+  flex: 1;
+  min-width: 0;
+  max-width: 22rem;
+}
+
+.top-workspace input {
+  width: 100%;
+  background: var(--bg-pane);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.35rem 0.55rem;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.activity-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.4rem 0.25rem;
+  border-right: 1px solid var(--line);
+  background: var(--bg-elevated);
+  overflow: auto;
+}
+
+.rail-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.4rem 0.2rem;
+  font-size: 0.62rem;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.rail-btn:hover {
+  color: var(--ink);
+}
+
+.rail-btn.active {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  background: color-mix(in oklab, var(--accent-dim) 28%, transparent);
+}
+
+.rail-short {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border-right: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg-elevated) 90%, transparent);
+  overflow: auto;
+  animation: inspector-in 180ms ease;
+}
+
+@keyframes inspector-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.ade-center {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.ade-shell.dock-open .ade-center {
+  grid-template-columns: 1fr minmax(280px, 38%);
+}
+
+.files-dock {
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.files-panel.dock {
+  height: 100%;
+}
+
+.command-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  border-top: 1px solid var(--line);
+  background: var(--bg-elevated);
+  animation: cmd-in 200ms ease;
+}
+
+@keyframes cmd-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.command-target {
+  max-width: 12rem;
+  background: var(--bg-pane);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.35rem;
+}
+
+.command-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-pane);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.4rem 0.55rem;
+}
+
+.command-error {
+  color: var(--danger);
+  font-size: 0.72rem;
+}
+
+.browser-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 0.4rem;
+  padding: 0.5rem;
+}
+
+.browser-bar {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.browser-bar input {
+  flex: 1;
+  background: var(--bg-pane);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.4rem 0.55rem;
+}
+
+.browser-frame {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.browser-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.cmd-block-out {
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  max-height: 8rem;
+  overflow: auto;
+  font-size: 0.72rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.memory-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0.35rem 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector,
+  .command-bar,
+  .rail-btn {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .ade-shell,
+  .ade-shell.inspector-open {
+    grid-template-columns: 48px 1fr;
+  }
+  .inspector {
+    position: fixed;
+    z-index: 30;
+    left: 48px;
+    top: 48px;
+    bottom: 52px;
+    width: min(280px, 80vw);
+    box-shadow: 0 12px 40px color-mix(in oklab, #000 50%, transparent);
+  }
+  .ade-shell.dock-open .ade-center {
+    grid-template-columns: 1fr;
+  }
+  .files-dock {
+    position: absolute;
+    inset: 48px 0 52px 48px;
+    z-index: 25;
+    background: var(--bg);
+  }
+}
+
+.activity-rail { grid-row: 2; }
+.inspector { grid-row: 2; }
+.ade-center { grid-row: 2; min-height: 0; }
+.command-bar { grid-row: 3; }
+

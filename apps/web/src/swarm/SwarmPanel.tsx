@@ -14,11 +14,13 @@ function PlanNodeView({
   depth,
   working,
   onStatus,
+  onAddChild,
 }: {
   node: SwarmPlanNode;
   depth: number;
   working: boolean;
   onStatus: (nodeId: string, status: SwarmPlanStatus) => void;
+  onAddChild: (nodeId: string) => void;
 }) {
   return (
     <div className="mission-node" style={{ marginLeft: depth * 12 }}>
@@ -39,6 +41,16 @@ function PlanNodeView({
             {s}
           </button>
         ))}
+        {depth === 0 && (
+          <button
+            type="button"
+            className="chip"
+            disabled={working}
+            onClick={() => onAddChild(node.id)}
+          >
+            + child
+          </button>
+        )}
       </div>
       {(node.children ?? []).map((child) => (
         <PlanNodeView
@@ -47,6 +59,7 @@ function PlanNodeView({
           depth={depth + 1}
           working={working}
           onStatus={onStatus}
+          onAddChild={onAddChild}
         />
       ))}
     </div>
@@ -70,6 +83,10 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
 
   useEffect(() => {
     void refresh().catch((err) => setError(err instanceof Error ? err.message : String(err)));
+    const id = window.setInterval(() => {
+      void refresh().catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(id);
   }, []);
 
   const launch = async () => {
@@ -165,6 +182,24 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
       await api(`/api/swarm/${selectedId}/plan`, {
         method: "POST",
         body: JSON.stringify({ nodeId, status }),
+      });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const addChild = async (parentId: string) => {
+    if (!selectedId) return;
+    const title = window.prompt("Child task title");
+    if (!title?.trim()) return;
+    setWorking(true);
+    try {
+      await api(`/api/swarm/${selectedId}/plan/add`, {
+        method: "POST",
+        body: JSON.stringify({ parentId, title: title.trim() }),
       });
       await refresh();
     } catch (err) {
@@ -273,6 +308,7 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
                     depth={0}
                     working={working}
                     onStatus={(id, status) => void setPlanStatus(id, status)}
+                    onAddChild={(id) => void addChild(id)}
                   />
                 ))}
               </div>

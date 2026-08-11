@@ -31,7 +31,7 @@ describe("protocol", () => {
   });
 
   it("allows 16-pane layout presets", () => {
-    const layouts: LayoutPreset[] = [1, 2, 4, 6, 8, 12, 16];
+    const layouts: LayoutPreset[] = [1, 2, 4, 6, 8, 10, 12, 14, 16];
     expect(layouts).toContain(16);
   });
 });

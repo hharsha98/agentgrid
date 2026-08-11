@@ -15,23 +15,28 @@ import { MemoryPanel } from "./files/MemoryPanel";
 import { SwarmPanel } from "./swarm/SwarmPanel";
 import { SkillsPanel } from "./swarm/SkillsPanel";
 import { PromptsPanel } from "./prompts/PromptsPanel";
+import { BrowserPanel } from "./browser/BrowserPanel";
 import { SplitLayout } from "./grid/SplitLayout";
 import {
   defaultTree,
   fillEmptyLeaves,
+  listLeaves,
+  splitLeaf,
   type PaneNode,
 } from "./grid/splitTree";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { api } from "./lib/http";
 import {
-  THEME_IDS,
-  THEME_LABELS,
   applyTheme,
   cycleTheme,
   loadTheme,
   type ThemeId,
 } from "./lib/themes";
-
+import { TopBar } from "./shell/TopBar";
+import { ActivityRail } from "./shell/ActivityRail";
+import { Inspector } from "./shell/Inspector";
+import { CommandBar } from "./shell/CommandBar";
+import type { AppView } from "./shell/types";
 
 const STORAGE_KEY = "agentgrid.workspace.v1";
 
@@ -44,6 +49,8 @@ interface SavedWorkspace {
   splitTree?: PaneNode;
   cwd: string;
   agentId: AgentId;
+  inspectorOpen?: boolean;
+  dockOpen?: boolean;
 }
 
 function loadSavedWorkspace(): Partial<SavedWorkspace> {
@@ -79,11 +86,11 @@ export function App() {
   );
   const [workspaceName, setWorkspaceName] = useState(saved.workspaceName ?? "default");
   const [showHelp, setShowHelp] = useState(false);
-  const [view, setView] = useState<
-    "grid" | "board" | "files" | "memory" | "swarm" | "skills" | "prompts"
-  >("grid");
+  const [view, setView] = useState<AppView>("grid");
   const [theme, setTheme] = useState<ThemeId>(() => loadTheme());
   const [cards, setCards] = useState<KanbanCard[]>([]);
+  const [inspectorOpen, setInspectorOpen] = useState(saved.inspectorOpen ?? true);
+  const [dockOpen, setDockOpen] = useState(saved.dockOpen ?? false);
 
   useEffect(() => {
     const payload: SavedWorkspace = {
@@ -93,9 +100,11 @@ export function App() {
       splitTree,
       cwd,
       agentId,
+      inspectorOpen,
+      dockOpen,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [workspaceName, layout, layoutMode, splitTree, cwd, agentId]);
+  }, [workspaceName, layout, layoutMode, splitTree, cwd, agentId, inspectorOpen, dockOpen]);
 
   useEffect(() => {
     if (layoutMode !== "free") return;
@@ -173,6 +182,7 @@ export function App() {
       setSessions((prev) => [...prev, session]);
       setActiveId(session.id);
       setTitle("");
+      setView("grid");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -200,6 +210,7 @@ export function App() {
       }
       setSessions((prev) => [...prev, ...created]);
       setActiveId(created[0]?.id ?? null);
+      setView("grid");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -244,10 +255,12 @@ export function App() {
         sessions: SessionInfo[];
       }>(`/api/workspaces/${id}/launch`, { method: "POST" });
       setWorkspaceName(res.workspace.name);
+      setLayoutMode("preset");
       setLayout(res.workspace.layout);
       setCwd(res.workspace.cwd ?? "");
       setSessions((prev) => [...prev, ...res.sessions]);
       setActiveId(res.sessions[0]?.id ?? null);
+      setView("grid");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -292,7 +305,6 @@ export function App() {
     },
     [sessions, activeId],
   );
-
 
   const applySkillToSession = async (skillId: string, sessionId: string) => {
     setBusy(true);
@@ -342,6 +354,11 @@ export function App() {
     }
   };
 
+  const setPresetLayout = useCallback((n: LayoutPreset) => {
+    setLayoutMode("preset");
+    setLayout(n);
+  }, []);
+
   const dispatchCard = async (id: string) => {
     setBusy(true);
     setError(null);
@@ -374,21 +391,38 @@ export function App() {
     }
   };
 
-  const setPresetLayout = useCallback((n: LayoutPreset) => {
-    setLayoutMode("preset");
-    setLayout(n);
-  }, []);
-
   const enableFreeLayout = useCallback(() => {
     setLayoutMode("free");
     setSplitTree((prev) => {
-      // Seed from current sessions when switching into free mode from presets.
       if (prev.type === "leaf" && !prev.sessionId && sessions.length > 0) {
         return defaultTree(sessions.map((s) => s.id));
       }
       return fillEmptyLeaves(prev, sessions.map((s) => s.id));
     });
   }, [sessions]);
+
+  const splitFocused = useCallback(() => {
+    enableFreeLayout();
+    setSplitTree((prev) => {
+      const leaves = listLeaves(prev);
+      const focused =
+        leaves.find((l) => l.sessionId === activeId) ?? leaves[leaves.length - 1];
+      if (!focused) {
+        const seed = defaultTree([]);
+        return splitLeaf(seed, listLeaves(seed)[0]!.id, "col");
+      }
+      return splitLeaf(prev, focused.id, "col");
+    });
+    setView("grid");
+  }, [activeId, enableFreeLayout]);
+
+  const sendCommand = async (text: string, target: string) => {
+    const body = text.endsWith("\n") ? text : `${text}\n`;
+    await api("/api/sessions/broadcast", {
+      method: "POST",
+      body: JSON.stringify({ text: body, target }),
+    });
+  };
 
   const shortcutHandlers = useMemo(
     () => ({
@@ -403,366 +437,203 @@ export function App() {
       onFocusNext: () => focusRelative(1),
       onFocusPrev: () => focusRelative(-1),
       onCycleTheme: () => setTheme((t) => cycleTheme(t)),
+      onNewPane: () => {
+        void createSession();
+      },
+      onSplit: () => splitFocused(),
+      onToggleBoard: () => setView((v) => (v === "board" ? "grid" : "board")),
+      onToggleSwarm: () => setView((v) => (v === "swarm" ? "grid" : "swarm")),
+      onToggleInspector: () => setInspectorOpen((v) => !v),
     }),
-    [createSession, saveWorkspace, focusRelative, setPresetLayout],
+    [createSession, saveWorkspace, focusRelative, setPresetLayout, splitFocused],
   );
 
   useKeyboardShortcuts(shortcutHandlers);
 
   const slots = splitIds(sessions, layout);
   const gridClass = layoutMode === "free" ? "grid-free" : `grid-${layout}`;
+  const showDock = dockOpen || view === "files";
+  const stageIsGrid = view === "grid" || view === "files";
+
+  const renderGrid = () =>
+    layoutMode === "free" ? (
+      <SplitLayout
+        tree={splitTree}
+        sessions={sessions}
+        activeId={activeId}
+        onChange={setSplitTree}
+        onFocus={setActiveId}
+        onSkillDrop={(skillId, sessionId) => void applySkillToSession(skillId, sessionId)}
+      />
+    ) : (
+      slots.map((session, i) => (
+        <section
+          key={session?.id ?? `empty-${i}`}
+          className={session && session.id === activeId ? "pane focused" : "pane"}
+          onClick={() => session && setActiveId(session.id)}
+          onDragOver={(e) => {
+            const types = [...e.dataTransfer.types];
+            if (
+              types.includes("application/x-agentgrid-skill") ||
+              types.includes("application/x-agentgrid-path")
+            ) {
+              e.preventDefault();
+              e.currentTarget.classList.add("skill-drop-hover");
+            }
+          }}
+          onDragLeave={(e) => e.currentTarget.classList.remove("skill-drop-hover")}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove("skill-drop-hover");
+            const skillId = e.dataTransfer.getData("application/x-agentgrid-skill");
+            if (skillId && session) void applySkillToSession(skillId, session.id);
+            const path = e.dataTransfer.getData("application/x-agentgrid-path");
+            if (path && session) {
+              void api(`/api/sessions/${session.id}/write`, {
+                method: "POST",
+                body: JSON.stringify({ data: path }),
+              }).catch(() => undefined);
+            }
+          }}
+        >
+          <header className="pane-bar">
+            <span>{session ? session.title : `Empty slot ${i + 1}`}</span>
+            {session && <span className="pane-agent">{session.agentId}</span>}
+          </header>
+          <div className="pane-body">
+            {session ? (
+              <Terminal sessionId={session.id} />
+            ) : (
+              <div className="empty-pane">Launch an agent into this slot</div>
+            )}
+          </div>
+        </section>
+      ))
+    );
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">AG</div>
-          <div>
-            <div className="brand-name">agentgrid</div>
-            <div className="brand-sub">multi-agent terminal grid</div>
-          </div>
-        </div>
+    <div
+      className={[
+        "ade-shell",
+        inspectorOpen ? "inspector-open" : "",
+        showDock ? "dock-open" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <TopBar
+        workspaceName={workspaceName}
+        onWorkspaceName={setWorkspaceName}
+        health={health}
+        theme={theme}
+        onTheme={setTheme}
+        inspectorOpen={inspectorOpen}
+        onToggleInspector={() => setInspectorOpen((v) => !v)}
+        dockOpen={dockOpen}
+        onToggleDock={() => {
+          setDockOpen((v) => !v);
+          if (!dockOpen) setView("grid");
+        }}
+      />
 
-        <div className={`health health-${health}`}>
-          server {health === "ok" ? "online" : health === "checking" ? "…" : "offline"}
-          <span className="port-hint">:4318 / :5318</span>
-        </div>
+      <ActivityRail view={view} onView={setView} />
 
-        <div className="layout-row view-row">
-          {(
-            [
-              ["grid", "Grid"],
-              ["board", "Board"],
-              ["files", "Files"],
-              ["memory", "Memory"],
-              ["swarm", "Swarm"],
-              ["skills", "Skills"],
-              ["prompts", "Prompts"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={view === id ? "chip active" : "chip"}
-              onClick={() => setView(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <Inspector
+        open={inspectorOpen}
+        health={health}
+        busy={busy}
+        error={error}
+        agents={agents}
+        agentId={agentId}
+        onAgentId={setAgentId}
+        cwd={cwd}
+        onCwd={setCwd}
+        title={title}
+        onTitle={setTitle}
+        layout={layout}
+        layoutMode={layoutMode}
+        onPresetLayout={setPresetLayout}
+        onLayoutMode={setLayoutMode}
+        onEnableFree={enableFreeLayout}
+        onLaunch={() => void createSession()}
+        onSaveWorkspace={() => void saveWorkspace()}
+        onLaunchPreset={(ids, name) => void launchPreset(ids, name)}
+        workspaceName={workspaceName}
+        templates={templates}
+        onOpenWorkspace={(id) => void openWorkspace(id)}
+        onDeleteWorkspace={(id) => void deleteWorkspace(id)}
+        sessions={sessions}
+        activeId={activeId}
+        onFocusSession={setActiveId}
+        onKillSession={(id) => void killSession(id)}
+        showHelp={showHelp}
+        onToggleHelp={() => setShowHelp((v) => !v)}
+      />
 
-        <label className="field">
-          <span>Workspace</span>
-          <input
-            value={workspaceName}
-            onChange={(e) => setWorkspaceName(e.target.value)}
-            placeholder="e.g. UI cleanup"
-          />
-        </label>
-
-        <label className="field">
-          <span>Layout</span>
-          <div className="layout-row">
-            <button
-              type="button"
-              className={layoutMode === "preset" ? "chip active" : "chip"}
-              onClick={() => setLayoutMode("preset")}
-            >
-              Preset
-            </button>
-            <button
-              type="button"
-              className={layoutMode === "free" ? "chip active" : "chip"}
-              onClick={() => enableFreeLayout()}
-            >
-              Free
-            </button>
-          </div>
-          {layoutMode === "preset" && (
-            <div className="layout-row">
-              {([1, 2, 4, 6, 8, 12, 16] as LayoutPreset[]).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={layout === n ? "chip active" : "chip"}
-                  onClick={() => setPresetLayout(n)}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          )}
-          {layoutMode === "free" && (
-            <p className="layout-hint">H/V split buttons on each pane · drag the handle to resize</p>
-          )}
-        </label>
-
-        <label className="field">
-          <span>Theme</span>
-          <div className="layout-row">
-            {THEME_IDS.map((id) => (
-              <button
-                key={id}
-                type="button"
-                className={theme === id ? "chip active" : "chip"}
-                onClick={() => setTheme(id)}
-              >
-                {THEME_LABELS[id]}
-              </button>
-            ))}
-          </div>
-        </label>
-
-        <label className="field">
-          <span>Quick launch</span>
-          <div className="preset-col">
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy || health !== "ok"}
-              onClick={() => void launchPreset(["claude", "codex"], workspaceName || "pair")}
-            >
-              Claude + Codex
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy || health !== "ok"}
-              onClick={() =>
-                void launchPreset(["claude", "cursor-agent"], workspaceName || "pair")
-              }
-            >
-              Claude + Cursor
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy || health !== "ok"}
-              onClick={() => void launchPreset(["shell", "shell"], workspaceName || "shells")}
-            >
-              Two shells
-            </button>
-          </div>
-        </label>
-
-        <label className="field">
-          <span>Agent</span>
-          <select value={agentId} onChange={(e) => setAgentId(e.target.value as AgentId)}>
-            {agents.map((a) => (
-              <option key={a.id} value={a.id} disabled={!a.available}>
-                {a.displayName}
-                {!a.available ? " (missing)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Working directory</span>
-          <input
-            value={cwd}
-            onChange={(e) => setCwd(e.target.value)}
-            placeholder="leave blank = server cwd"
-          />
-        </label>
-
-        <label className="field">
-          <span>Pane title</span>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="optional"
-          />
-        </label>
-
-        <button
-          type="button"
-          className="primary"
-          disabled={busy || health !== "ok"}
-          onClick={() => void createSession()}
+      <div className="ade-center">
+        <main
+          className={
+            stageIsGrid
+              ? `main ${gridClass}`
+              : "main board-main"
+          }
         >
-          Launch pane
-        </button>
-
-        <button
-          type="button"
-          className="secondary"
-          disabled={busy || health !== "ok"}
-          onClick={() => void saveWorkspace()}
-        >
-          Save workspace template
-        </button>
-
-        {error && <pre className="error">{error}</pre>}
-
-        <div className="session-list">
-          <div className="section-label">Saved templates</div>
-          {templates.length === 0 && <div className="empty">None yet — save one above</div>}
-          {templates.map((w) => (
-            <div key={w.id} className="template">
-              <button
-                type="button"
-                className="template-main"
-                disabled={busy}
-                onClick={() => void openWorkspace(w.id)}
-              >
-                <span className="session-title">{w.name}</span>
-                <span className="session-meta">
-                  {w.layout}-pane · {w.panes.map((p) => p.agentId).join(" + ")}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="template-del"
-                aria-label={`Delete ${w.name}`}
-                onClick={() => void deleteWorkspace(w.id)}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div className="session-list">
-          <div className="section-label">Sessions</div>
-          {sessions.length === 0 && <div className="empty">No sessions yet</div>}
-          {sessions.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className={s.id === activeId ? "session active" : "session"}
-              onClick={() => setActiveId(s.id)}
-            >
-              <span className="session-title">{s.title}</span>
-              <span className="session-meta">{s.agentId}</span>
-              <span
-                className="kill"
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void killSession(s.id);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.stopPropagation();
-                    void killSession(s.id);
-                  }
-                }}
-              >
-                ×
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <button type="button" className="help-toggle" onClick={() => setShowHelp((v) => !v)}>
-          {showHelp ? "Hide shortcuts" : "Keyboard shortcuts (?)"}
-        </button>
-        {showHelp && (
-          <pre className="help">
-{`⌘/Ctrl+1|2|4|0   preset layout (0 = 16)
-Free layout      H/V chips on panes + drag handles
-⌘/Ctrl+Enter     launch pane
-⌘/Ctrl+S         save template
-⌘/Ctrl+[ ]       prev/next session
-⌘/Ctrl+Shift+T   cycle theme
-⌘/Ctrl+F         search focused terminal
-?                toggle this help`}
-          </pre>
-        )}
-
-        <p className="footnote">
-          Isolated from vibedeck. Templates live in ~/.agentgrid/workspaces.json
-        </p>
-      </aside>
-
-      <main
-        className={
-          view === "grid" ? `main ${gridClass}` : "main board-main"
-        }
-      >
-        {view === "board" ? (
-          <KanbanBoard
-            cards={cards}
-            agents={agents}
-            busy={busy || health !== "ok"}
-            onCreate={(t, a, body) => void createCard(t, a, body)}
-            onMove={(id, col) => void moveCard(id, col)}
-            onDispatch={(id) => void dispatchCard(id)}
-            onDelete={(id) => void deleteCard(id)}
-          />
-        ) : view === "files" ? (
-          <FilesPanel initialRoot={cwd.trim() || undefined} />
-        ) : view === "memory" ? (
-          <MemoryPanel />
-        ) : view === "swarm" ? (
-          <SwarmPanel
-            busy={busy || health !== "ok"}
-            cwd={cwd}
-            onLaunched={(swarm) => {
-              setWorkspaceName(swarm.name);
-              setPresetLayout(4);
-              setView("grid");
-              void refresh();
-            }}
-          />
-        ) : view === "skills" ? (
-          <SkillsPanel
-            sessions={sessions}
-            activeSessionId={activeId}
-            busy={busy || health !== "ok"}
-          />
-        ) : view === "prompts" ? (
-          <PromptsPanel
-            sessions={sessions}
-            activeSessionId={activeId}
-            busy={busy || health !== "ok"}
-          />
-        ) : layoutMode === "free" ? (
-          <SplitLayout
-            tree={splitTree}
-            sessions={sessions}
-            activeId={activeId}
-            onChange={setSplitTree}
-            onFocus={setActiveId}
-            onSkillDrop={(skillId, sessionId) => void applySkillToSession(skillId, sessionId)}
-          />
-        ) : (
-          slots.map((session, i) => (
-            <section
-              key={session?.id ?? `empty-${i}`}
-              className={session && session.id === activeId ? "pane focused" : "pane"}
-              onClick={() => session && setActiveId(session.id)}
-              onDragOver={(e) => {
-                if ([...e.dataTransfer.types].includes("application/x-agentgrid-skill")) {
-                  e.preventDefault();
-                  e.currentTarget.classList.add("skill-drop-hover");
-                }
+          {view === "board" ? (
+            <KanbanBoard
+              cards={cards}
+              sessions={sessions}
+              agents={agents}
+              busy={busy || health !== "ok"}
+              onCreate={(t, a, body) => void createCard(t, a, body)}
+              onMove={(id, col) => void moveCard(id, col)}
+              onDispatch={(id) => void dispatchCard(id)}
+              onDelete={(id) => void deleteCard(id)}
+            />
+          ) : view === "memory" ? (
+            <MemoryPanel cwd={cwd.trim() || undefined} />
+          ) : view === "swarm" ? (
+            <SwarmPanel
+              busy={busy || health !== "ok"}
+              cwd={cwd}
+              onLaunched={(swarm) => {
+                setWorkspaceName(swarm.name);
+                setPresetLayout(4);
+                setView("grid");
+                void refresh();
               }}
-              onDragLeave={(e) => e.currentTarget.classList.remove("skill-drop-hover")}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.currentTarget.classList.remove("skill-drop-hover");
-                const skillId = e.dataTransfer.getData("application/x-agentgrid-skill");
-                if (skillId && session) void applySkillToSession(skillId, session.id);
-              }}
-            >
-              <header className="pane-bar">
-                <span>{session ? session.title : `Empty slot ${i + 1}`}</span>
-                {session && <span className="pane-agent">{session.agentId}</span>}
-              </header>
-              <div className="pane-body">
-                {session ? (
-                  <Terminal sessionId={session.id} />
-                ) : (
-                  <div className="empty-pane">Launch an agent into this slot</div>
-                )}
-              </div>
-            </section>
-          ))
+            />
+          ) : view === "skills" ? (
+            <SkillsPanel
+              sessions={sessions}
+              activeSessionId={activeId}
+              busy={busy || health !== "ok"}
+            />
+          ) : view === "prompts" ? (
+            <PromptsPanel
+              sessions={sessions}
+              activeSessionId={activeId}
+              busy={busy || health !== "ok"}
+            />
+          ) : view === "browser" ? (
+            <BrowserPanel />
+          ) : (
+            renderGrid()
+          )}
+        </main>
+
+        {showDock && view !== "browser" && (
+          <aside className="files-dock">
+            <FilesPanel initialRoot={cwd.trim() || undefined} dock />
+          </aside>
         )}
-      </main>
+      </div>
+
+      <CommandBar
+        sessions={sessions}
+        activeSessionId={activeId}
+        busy={busy || health !== "ok"}
+        onSend={sendCommand}
+      />
     </div>
   );
 }

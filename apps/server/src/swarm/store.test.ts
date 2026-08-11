@@ -70,6 +70,15 @@ describe("SwarmStore", () => {
     const next = store.setPlanNodeStatus(draft.id, nodeId, "doing");
     expect(next.plan.find((n) => n.id === nodeId)?.status).toBe("doing");
   });
+
+  it("adds nested plan children", () => {
+    const store = fresh();
+    const draft = store.createDraft({ name: "Nest", mission: "Ship" });
+    store.save(draft);
+    const parent = draft.plan[0]!.id;
+    const next = store.addPlanNode(draft.id, { parentId: parent, title: "Subtask" });
+    expect(next.plan.find((n) => n.id === parent)?.children?.[0]?.title).toBe("Subtask");
+  });
 });
 
 describe("rolePrompt", () => {
