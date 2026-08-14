@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AgentId, KanbanCard, KanbanColumn } from "@agentgrid/shared";
+import type { AgentId, KanbanCard, KanbanColumn, SessionInfo } from "@agentgrid/shared";
 
 const COLUMNS: { id: KanbanColumn; label: string }[] = [
   { id: "todo", label: "Todo" },
@@ -10,6 +10,7 @@ const COLUMNS: { id: KanbanColumn; label: string }[] = [
 
 interface Props {
   cards: KanbanCard[];
+  sessions?: SessionInfo[];
   agents: { id: AgentId; displayName: string; available: boolean }[];
   busy?: boolean;
   onCreate: (title: string, agentId: AgentId, body?: string) => void;
@@ -20,6 +21,7 @@ interface Props {
 
 export function KanbanBoard({
   cards,
+  sessions = [],
   agents,
   busy,
   onCreate,
@@ -84,7 +86,12 @@ export function KanbanBoard({
               if (id) onMove(id, col.id);
             }}
           >
-            <header>{col.label}</header>
+            <header>
+              {col.label}
+              <span className="kanban-count">
+                {cards.filter((c) => c.column === col.id).length}
+              </span>
+            </header>
             <div className="kanban-cards">
               {cards
                 .filter((c) => c.column === col.id)
@@ -100,7 +107,12 @@ export function KanbanBoard({
                   >
                     <div className="kanban-card-title">{c.title}</div>
                     {c.body && <div className="kanban-card-body">{c.body}</div>}
-                    <div className="kanban-card-meta">{c.agentId}</div>
+                    <div className="kanban-card-meta">
+                      {c.agentId}
+                      {c.sessionId
+                        ? ` · ${sessions.find((s) => s.id === c.sessionId)?.title ?? c.sessionId.slice(0, 8)}`
+                        : ""}
+                    </div>
                     <div className="kanban-card-actions">
                       {(col.id === "todo" || col.id === "in_progress") && (
                         <button type="button" disabled={busy} onClick={() => onDispatch(c.id)}>

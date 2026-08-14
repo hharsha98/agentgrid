@@ -1,31 +1,110 @@
-export type ThemeId = "phosphor" | "amber" | "contrast";
+export type ThemeId =
+  | "phosphor"
+  | "amber"
+  | "contrast"
+  | "void"
+  | "ghost"
+  | "plasma"
+  | "carbon"
+  | "hex"
+  | "tokyo"
+  | "obsidian"
+  | "nebula"
+  | "storm"
+  | "infrared"
+  | "nova"
+  | "stealth"
+  | "hologram"
+  | "dracula"
+  | "synthwave"
+  | "cybernetics"
+  | "quantum"
+  | "mecha"
+  | "abyss"
+  | "paper"
+  | "chalk"
+  | "solar"
+  | "arctic"
+  | "ivory";
 
-export const THEME_IDS: ThemeId[] = ["phosphor", "amber", "contrast"];
+export const THEME_IDS: ThemeId[] = [
+  "phosphor",
+  "amber",
+  "contrast",
+  "void",
+  "ghost",
+  "plasma",
+  "carbon",
+  "hex",
+  "tokyo",
+  "obsidian",
+  "nebula",
+  "storm",
+  "infrared",
+  "nova",
+  "stealth",
+  "hologram",
+  "dracula",
+  "synthwave",
+  "cybernetics",
+  "quantum",
+  "mecha",
+  "abyss",
+  "paper",
+  "chalk",
+  "solar",
+  "arctic",
+  "ivory",
+];
 
 export const THEME_LABELS: Record<ThemeId, string> = {
   phosphor: "Phosphor",
   amber: "Amber",
   contrast: "Contrast",
+  void: "Void",
+  ghost: "Ghost",
+  plasma: "Plasma",
+  carbon: "Carbon",
+  hex: "Hex",
+  tokyo: "Neon Tokyo",
+  obsidian: "Obsidian",
+  nebula: "Nebula",
+  storm: "Storm",
+  infrared: "Infrared",
+  nova: "Nova",
+  stealth: "Stealth",
+  hologram: "Hologram",
+  dracula: "Dracula",
+  synthwave: "Synthwave",
+  cybernetics: "Cybernetics",
+  quantum: "Quantum",
+  mecha: "Mecha",
+  abyss: "Abyss",
+  paper: "Paper",
+  chalk: "Chalk",
+  solar: "Solar",
+  arctic: "Arctic",
+  ivory: "Ivory",
 };
+
+export const LIGHT_THEMES: ThemeId[] = ["paper", "chalk", "solar", "arctic", "ivory"];
 
 const STORAGE_KEY = "agentgrid.theme.v1";
 
 export function isThemeId(value: unknown): value is ThemeId {
-  return value === "phosphor" || value === "amber" || value === "contrast";
+  return typeof value === "string" && (THEME_IDS as string[]).includes(value);
 }
 
-/** Read saved theme from the browser (localStorage = small key/value store). */
 export function loadTheme(): ThemeId {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (isThemeId(raw)) return raw;
   } catch {
-    // ignore quota / private mode
+    // ignore
   }
   return "phosphor";
 }
 
-/** Apply CSS theme tokens via data-theme and remember the choice. */
 export function applyTheme(id: ThemeId): void {
   document.documentElement.dataset.theme = id;
   try {
@@ -40,7 +119,6 @@ export function cycleTheme(current: ThemeId): ThemeId {
   return THEME_IDS[(idx + 1) % THEME_IDS.length]!;
 }
 
-/** Pull live CSS variables so xterm matches the UI chrome. */
 export function readXtermTheme(): {
   background: string;
   foreground: string;

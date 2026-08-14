@@ -125,3 +125,32 @@ export function statFile(root: string, relPath: string): { path: string; mtimeMs
   if (!st.isFile()) throw new Error("not a file");
   return { path: relative(real(root), abs) || basename(abs), mtimeMs: st.mtimeMs, size: st.size };
 }
+
+const MAX_SEARCH_HITS = 80;
+const MAX_SEARCH_DIRS = 400;
+
+/** Shallow recursive filename search under root (for Quick Open). */
+export function searchFiles(root: string, query: string, base = "."): FsEntry[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const hits: FsEntry[] = [];
+  let dirs = 0;
+
+  const walk = (rel: string) => {
+    if (hits.length >= MAX_SEARCH_HITS || dirs >= MAX_SEARCH_DIRS) return;
+    dirs += 1;
+    let entries: FsEntry[];
+    try {
+      entries = listDir(root, rel);
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (hits.length >= MAX_SEARCH_HITS) return;
+      if (e.name.toLowerCase().includes(q)) hits.push(e);
+      if (e.type === "dir") walk(e.path);
+    }
+  };
+  walk(base || ".");
+  return hits;
+}

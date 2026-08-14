@@ -215,6 +215,32 @@ export class SwarmStore {
     return this.save({ ...mission, plan: walk(mission.plan ?? []) });
   }
 
+  addPlanNode(
+    id: string,
+    input: { parentId?: string; title: string; role?: SwarmRole },
+  ): SwarmMission {
+    const mission = this.get(id);
+    if (!mission) throw new Error("swarm not found");
+    const title = (input.title ?? "").trim();
+    if (!title) throw new Error("title required");
+    const node: SwarmPlanNode = {
+      id: randomUUID(),
+      title,
+      role: input.role,
+      status: "pending",
+    };
+    if (!input.parentId) {
+      return this.save({ ...mission, plan: [...(mission.plan ?? []), node] });
+    }
+    const walk = (nodes: SwarmPlanNode[]): SwarmPlanNode[] =>
+      nodes.map((n) =>
+        n.id === input.parentId
+          ? { ...n, children: [...(n.children ?? []), node] }
+          : { ...n, children: n.children ? walk(n.children) : undefined },
+      );
+    return this.save({ ...mission, plan: walk(mission.plan ?? []) });
+  }
+
   postMail(id: string, input: PostSwarmMailRequest): SwarmMission {
     const mission = this.get(id);
     if (!mission) throw new Error("swarm not found");

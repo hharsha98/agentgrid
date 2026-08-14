@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
-import type { SwarmMission, SwarmPlanNode, SwarmPlanStatus } from "@agentgrid/shared";
+import type {
+  SwarmMission,
+  SwarmPlanNode,
+  SwarmPlanStatus,
+  SwarmRole,
+} from "@agentgrid/shared";
 import { api } from "../lib/http";
-
 
 interface Props {
   busy?: boolean;
@@ -9,21 +13,49 @@ interface Props {
   onLaunched?: (swarm: SwarmMission) => void;
 }
 
+const ROLES: Array<SwarmRole | ""> = ["", "coordinator", "builder", "scout", "reviewer"];
+
 function PlanNodeView({
   node,
   depth,
   working,
+  collapsed,
+  onToggle,
   onStatus,
+  onAddChild,
 }: {
   node: SwarmPlanNode;
   depth: number;
   working: boolean;
+  collapsed: Record<string, boolean>;
+  onToggle: (id: string) => void;
   onStatus: (nodeId: string, status: SwarmPlanStatus) => void;
+  onAddChild: (nodeId: string) => void;
 }) {
+  const kids = node.children ?? [];
+  const isCollapsed = Boolean(collapsed[node.id]);
+  const hasKids = kids.length > 0;
+
   return (
-    <div className="mission-node" style={{ marginLeft: depth * 12 }}>
+    <div className={`mission-node depth-${Math.min(depth, 4)}`}>
       <div className="mission-node-row">
-        <span className={`mission-status status-${node.status}`}>{node.status}</span>
+        {hasKids ? (
+          <button
+            type="button"
+            className="mission-twist"
+            onClick={() => onToggle(node.id)}
+            aria-label={isCollapsed ? "Expand" : "Collapse"}
+          >
+            {isCollapsed ? "▸" : "▾"}
+          </button>
+        ) : (
+          <span className="mission-twist spacer" aria-hidden>
+            ·
+          </span>
+        )}
+        <span className={`mission-status status-${node.status}`} title={node.status}>
+          {node.status === "done" ? "●" : node.status === "doing" ? "◉" : "○"}
+        </span>
         <span className="mission-title">{node.title}</span>
         {node.role && <span className="session-meta">{node.role}</span>}
       </div>
@@ -39,16 +71,28 @@ function PlanNodeView({
             {s}
           </button>
         ))}
+        <button
+          type="button"
+          className="chip"
+          disabled={working}
+          onClick={() => onAddChild(node.id)}
+        >
+          + child
+        </button>
       </div>
-      {(node.children ?? []).map((child) => (
-        <PlanNodeView
-          key={child.id}
-          node={child}
-          depth={depth + 1}
-          working={working}
-          onStatus={onStatus}
-        />
-      ))}
+      {!isCollapsed &&
+        kids.map((child) => (
+          <PlanNodeView
+            key={child.id}
+            node={child}
+            depth={depth + 1}
+            working={working}
+            collapsed={collapsed}
+            onToggle={onToggle}
+            onStatus={onStatus}
+            onAddChild={onAddChild}
+          />
+        ))}
     </div>
   );
 }
@@ -62,6 +106,7 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
   const [claimPath, setClaimPath] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mailBody, setMailBody] = useState("");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const refresh = async () => {
     const res = await api<{ swarms: SwarmMission[] }>("/api/swarm");
@@ -70,6 +115,10 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
 
   useEffect(() => {
     void refresh().catch((err) => setError(err instanceof Error ? err.message : String(err)));
+    const id = window.setInterval(() => {
+      void refresh().catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(id);
   }, []);
 
   const launch = async () => {
@@ -174,6 +223,35 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
     }
   };
 
+  const addNode = async (parentId?: string) => {
+    if (!selectedId) return;
+    const title = window.prompt(parentId ? "Child task title" : "Root task title");
+    if (!title?.trim()) return;
+    const roleRaw = window.prompt(
+      "Optional role (coordinator/builder/scout/reviewer) — leave blank for none",
+      "",
+    );
+    const role = ROLES.includes((roleRaw ?? "").trim() as SwarmRole | "")
+      ? ((roleRaw ?? "").trim() as SwarmRole | "")
+      : "";
+    setWorking(true);
+    try {
+      await api(`/api/swarm/${selectedId}/plan/add`, {
+        method: "POST",
+        body: JSON.stringify({
+          parentId,
+          title: title.trim(),
+          role: role || undefined,
+        }),
+      });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setWorking(false);
+    }
+  };
+
   const selected = swarms.find((s) => s.id === selectedId) ?? swarms[0] ?? null;
 
   return (
@@ -264,6 +342,16 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
                 <span className="session-meta">now: {selected.status}</span>
               </div>
               <div className="section-label">Mission plan</div>
+              <div className="mission-toolbar">
+                <button
+                  type="button"
+                  className="chip"
+                  disabled={working}
+                  onClick={() => void addNode()}
+                >
+                  + root task
+                </button>
+              </div>
               <div className="mission-tree">
                 {(selected.plan ?? []).length === 0 && <div className="empty">No plan nodes</div>}
                 {(selected.plan ?? []).map((node) => (
@@ -272,7 +360,12 @@ export function SwarmPanel({ busy, cwd, onLaunched }: Props) {
                     node={node}
                     depth={0}
                     working={working}
+                    collapsed={collapsed}
+                    onToggle={(id) =>
+                      setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }))
+                    }
                     onStatus={(id, status) => void setPlanStatus(id, status)}
+                    onAddChild={(id) => void addNode(id)}
                   />
                 ))}
               </div>

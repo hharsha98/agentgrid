@@ -16,7 +16,7 @@ function storePath(): string {
 }
 
 function isLayout(value: unknown): value is LayoutPreset {
-  return value === 1 || value === 2 || value === 4 || value === 6 || value === 8 || value === 12 || value === 16;
+  return value === 1 || value === 2 || value === 4 || value === 6 || value === 8 || value === 10 || value === 12 || value === 14 || value === 16;
 }
 
 function sanitize(raw: unknown): WorkspaceTemplate | null {

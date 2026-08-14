@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { MemoryStore } from "./store.js";
+import { MemoryStore, resolveMemoryDir } from "./store.js";
 
 describe("MemoryStore", () => {
   const dirs: string[] = [];
@@ -30,5 +30,16 @@ describe("MemoryStore", () => {
     const next = store.upsert({ id: note.id, title: "API", content: "# API\n\nv2\n" });
     expect(next.content).toContain("v2");
     expect(store.list()).toHaveLength(1);
+  });
+
+  it("resolves repo-local memory dir and wiki links", () => {
+    const root = mkdtempSync(join(tmpdir(), "agentgrid-mem-cwd-"));
+    dirs.push(root);
+    const dir = resolveMemoryDir(root);
+    const store = new MemoryStore(dir);
+    store.upsert({ title: "Alpha", content: "# Alpha\n\nSee [[Beta]]\n" });
+    store.upsert({ title: "Beta", content: "# Beta\n\n" });
+    const links = store.links();
+    expect(links.some((l) => l.from === "alpha" && l.to === "beta")).toBe(true);
   });
 });

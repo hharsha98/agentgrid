@@ -12,7 +12,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { MemoryNote } from "@agentgrid/shared";
 
-function memoryDir(): string {
+export function resolveMemoryDir(cwd?: string): string {
+  if (cwd && cwd.trim()) {
+    const dir = join(cwd.trim(), ".agentgrid-memory");
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  }
   const dir = join(homedir(), ".agentgrid", "memory");
   mkdirSync(dir, { recursive: true });
   return dir;
@@ -31,9 +36,13 @@ function slugify(title: string): string {
 export class MemoryStore {
   private dir: string;
 
-  constructor(dir = memoryDir()) {
+  constructor(dir = resolveMemoryDir()) {
     this.dir = dir;
     mkdirSync(this.dir, { recursive: true });
+  }
+
+  withDir(dir: string): MemoryStore {
+    return new MemoryStore(dir);
   }
 
   list(): MemoryNote[] {
@@ -56,6 +65,22 @@ export class MemoryStore {
       });
     }
     return notes.sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  /** Extract [[wiki]] and markdown links between notes. */
+  links(): { from: string; to: string }[] {
+    const notes = this.list();
+    const ids = new Set(notes.map((n) => n.id));
+    const titles = new Map(notes.map((n) => [n.title.toLowerCase(), n.id]));
+    const out: { from: string; to: string }[] = [];
+    for (const n of notes) {
+      for (const m of n.content.matchAll(/\[\[([^\]]+)\]\]/g)) {
+        const raw = m[1]!.trim().toLowerCase();
+        const to = ids.has(raw) ? raw : titles.get(raw);
+        if (to) out.push({ from: n.id, to });
+      }
+    }
+    return out;
   }
 
   get(id: string): MemoryNote | undefined {

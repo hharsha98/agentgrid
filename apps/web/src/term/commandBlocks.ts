@@ -136,7 +136,7 @@ export class CommandBlockTracker {
         if (this.currentId) {
           this.blocks = this.blocks.map((b) =>
             b.id === this.currentId
-              ? { ...b, exitCode: ev.exitCode, status: "done" as const }
+              ? { ...b, exitCode: ev.exitCode, status: "done" as const, collapsed: true }
               : b,
           );
           appendId = this.currentId;

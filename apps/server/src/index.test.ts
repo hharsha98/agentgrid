@@ -252,6 +252,31 @@ describe("HTTP API", () => {
     sessions.dispose(sessionId);
   });
 
+  it("broadcasts to sessions", async () => {
+    const a = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { agentId: "shell", title: "b1" },
+    });
+    const b = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { agentId: "shell", title: "b2" },
+    });
+    const idA = (a.json() as { session: { id: string } }).session.id;
+    const idB = (b.json() as { session: { id: string } }).session.id;
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/sessions/broadcast",
+      payload: { text: "echo hi\n", target: "*" },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { written: string[] };
+    expect(body.written).toEqual(expect.arrayContaining([idA, idB]));
+    sessions.dispose(idA);
+    sessions.dispose(idB);
+  });
+
   it("launches a swarm with fallbacks", async () => {
     const res = await app.inject({
       method: "POST",

@@ -28,8 +28,9 @@ import {
   readFile as readFsFile,
   writeFile as writeFsFile,
   statFile as statFsFile,
+  searchFiles as searchFsFiles,
 } from "./fs/safe-fs.js";
-import { MemoryStore } from "./memory/store.js";
+import { MemoryStore, resolveMemoryDir } from "./memory/store.js";
 import { rolePrompt, SwarmStore } from "./swarm/store.js";
 import { SkillStore } from "./skills/store.js";
 import { PromptStore } from "./prompts/store.js";
@@ -115,6 +116,47 @@ export async function buildApp(options?: {
     if (!ok) return reply.code(404).send({ error: "session not found" });
     return reply.code(204).send();
   });
+
+  app.post<{ Params: { id: string }; Body: { data?: string } }>(
+    "/api/sessions/:id/write",
+    async (req, reply) => {
+      const data = req.body?.data;
+      if (typeof data !== "string") return reply.code(400).send({ error: "data required" });
+      if (!sessions.get(req.params.id)) return reply.code(404).send({ error: "session not found" });
+      const ok = sessions.write(req.params.id, data);
+      if (!ok) return reply.code(500).send({ error: "write failed" });
+      return { ok: true };
+    },
+  );
+
+  app.post<{ Body: { text?: string; target?: string } }>(
+    "/api/sessions/broadcast",
+    async (req, reply) => {
+      const text = req.body?.text ?? "";
+      if (!text.trim()) return reply.code(400).send({ error: "text required" });
+      const target = (req.body?.target ?? "*").trim();
+      const all = sessions.list();
+      let ids: string[] = [];
+      if (target === "*" || target === "all") {
+        ids = all.map((s) => s.id);
+      } else if (target.startsWith("@")) {
+        const role = target.slice(1);
+        for (const swarm of swarms.list()) {
+          for (const m of swarm.members) {
+            if (m.role === role && m.sessionId) ids.push(m.sessionId);
+          }
+        }
+      } else {
+        ids = [target];
+      }
+      const written: string[] = [];
+      for (const id of ids) {
+        if (sessions.get(id) && sessions.write(id, text)) written.push(id);
+      }
+      if (written.length === 0) return reply.code(404).send({ error: "no matching sessions" });
+      return { written };
+    },
+  );
 
   app.get("/api/workspaces", async () => ({ workspaces: workspaces.list() }));
 
@@ -234,6 +276,22 @@ export async function buildApp(options?: {
 
   app.get("/api/fs/roots", async () => ({ roots: fsRoots }));
 
+  app.get<{ Querystring: { root?: string; q?: string } }>(
+    "/api/fs/search",
+    async (req, reply) => {
+      const root = req.query.root || fsRoots[0];
+      const q = req.query.q ?? "";
+      if (!root || !fsRoots.includes(root)) {
+        return reply.code(400).send({ error: "invalid root" });
+      }
+      try {
+        return { root, query: q, entries: searchFsFiles(root, q) };
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
+
   app.get<{ Querystring: { root?: string; path?: string } }>(
     "/api/fs/tree",
     async (req, reply) => {
@@ -299,22 +357,30 @@ export async function buildApp(options?: {
     },
   );
 
-  app.get("/api/memory", async () => ({
-    notes: memory.list(),
-    directory: memory.directory,
-  }));
+  const memoryFor = (cwd?: string) =>
+    cwd?.trim() ? memory.withDir(resolveMemoryDir(cwd.trim())) : memory;
 
-  app.get<{ Params: { id: string } }>("/api/memory/:id", async (req, reply) => {
-    const note = memory.get(req.params.id);
+  app.get<{ Querystring: { cwd?: string } }>("/api/memory", async (req) => {
+    const store = memoryFor(req.query.cwd);
+    return {
+      notes: store.list(),
+      directory: store.directory,
+      links: store.links(),
+    };
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { cwd?: string } }>("/api/memory/:id", async (req, reply) => {
+    const note = memoryFor(req.query.cwd).get(req.params.id);
     if (!note) return reply.code(404).send({ error: "note not found" });
     return { note };
   });
 
-  app.post<{ Body: { title?: string; content?: string; id?: string } }>(
+  app.post<{ Body: { title?: string; content?: string; id?: string; cwd?: string } }>(
     "/api/memory",
     async (req, reply) => {
       try {
-        const note = memory.upsert({
+        const store = memoryFor(req.body?.cwd);
+        const note = store.upsert({
           id: req.body?.id,
           title: req.body?.title ?? "",
           content: req.body?.content,
@@ -326,8 +392,8 @@ export async function buildApp(options?: {
     },
   );
 
-  app.delete<{ Params: { id: string } }>("/api/memory/:id", async (req, reply) => {
-    const ok = memory.remove(req.params.id);
+  app.delete<{ Params: { id: string }; Querystring: { cwd?: string } }>("/api/memory/:id", async (req, reply) => {
+    const ok = memoryFor(req.query.cwd).remove(req.params.id);
     if (!ok) return reply.code(404).send({ error: "note not found" });
     return reply.code(204).send();
   });
@@ -468,6 +534,22 @@ export async function buildApp(options?: {
       const status = req.body?.status;
       if (!nodeId || !status) return reply.code(400).send({ error: "nodeId and status required" });
       const swarm = swarms.setPlanNodeStatus(req.params.id, nodeId, status);
+      return { swarm };
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post<{
+    Params: { id: string };
+    Body: { parentId?: string; title?: string; role?: string };
+  }>("/api/swarm/:id/plan/add", async (req, reply) => {
+    try {
+      const swarm = swarms.addPlanNode(req.params.id, {
+        parentId: req.body?.parentId,
+        title: req.body?.title ?? "",
+        role: req.body?.role as never,
+      });
       return { swarm };
     } catch (err) {
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
