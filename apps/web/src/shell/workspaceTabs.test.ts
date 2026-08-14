@@ -29,7 +29,7 @@ describe("workspaceTabs", () => {
     const ws = createEmptyWorkspace("Alpha");
     expect(ws.name).toBe("Alpha");
     expect(ws.sessionIds).toEqual([]);
-    expect(ws.layout).toBe(1);
+    expect(ws.color).toBe("green");
   });
 
   it("round-trips open workspaces through localStorage", () => {

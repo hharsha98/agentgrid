@@ -90,8 +90,10 @@ function languageForPath(path: string): string {
 /** Monaco theme names that roughly match our CSS themes. */
 function monacoTheme(): string {
   const id = document.documentElement.dataset.theme;
-  if (id === "amber") return "vs-dark";
   if (id === "contrast") return "hc-black";
+  if (id === "paper" || id === "chalk" || id === "solar" || id === "arctic" || id === "ivory") {
+    return "vs";
+  }
   return "vs-dark";
 }
 

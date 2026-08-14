@@ -226,17 +226,19 @@ export function Inspector(p: InspectorProps) {
       </button>
       {p.showHelp && (
         <pre className="help">
-{`⌘/Ctrl+N|T      new pane
-⌘/Ctrl+W         close session
+{`⌘/Ctrl+T         new workspace tab
+⌘/Ctrl+N         new pane
+⌘/Ctrl+W         close workspace tab
+⌘/Ctrl+1–9       switch workspace tab
 ⌘/Ctrl+P         quick open file
 ⌘/Ctrl+D         split focused (free)
 ⌘/Ctrl+B         board
 ⌘/Ctrl+Shift+S   swarm
 ⌘/Ctrl+S         save template
 ⌘/Ctrl+,         toggle inspector
-⌘/Ctrl+1|2|4|0   preset layout
 ⌘/Ctrl+F         terminal search
-Top bar +       workspace tabs (local)
+⌘/Ctrl+Shift+T   cycle theme
+Right-click tab  recolor
 ?                this help`}
         </pre>
       )}

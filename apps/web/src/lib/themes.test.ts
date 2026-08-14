@@ -43,7 +43,7 @@ describe("themes", () => {
 
   it("cycles through the theme list", () => {
     expect(cycleTheme("phosphor")).toBe("amber");
-    expect(cycleTheme("abyss")).toBe("phosphor");
+    expect(cycleTheme("ivory")).toBe("phosphor");
   });
 
   it("applies data-theme and persists", () => {
@@ -52,6 +52,6 @@ describe("themes", () => {
       .document;
     expect(doc.documentElement.dataset.theme).toBe("amber");
     expect(loadTheme()).toBe("amber");
-    expect(THEME_IDS.length).toBeGreaterThanOrEqual(10);
+    expect(THEME_IDS.length).toBeGreaterThanOrEqual(24);
   });
 });

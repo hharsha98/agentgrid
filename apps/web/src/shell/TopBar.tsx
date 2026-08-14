@@ -1,6 +1,6 @@
 import type { ThemeId } from "../lib/themes";
 import { THEME_IDS, THEME_LABELS } from "../lib/themes";
-import type { OpenWorkspace } from "./workspaceTabs";
+import { TAB_COLORS, type OpenWorkspace, type TabColor } from "./workspaceTabs";
 
 interface Props {
   workspaces: OpenWorkspace[];
@@ -9,6 +9,7 @@ interface Props {
   onRenameWorkspace: (name: string) => void;
   onNewWorkspace: () => void;
   onCloseWorkspace: (id: string) => void;
+  onColorWorkspace: (id: string, color: TabColor) => void;
   health: "checking" | "ok" | "down";
   theme: ThemeId;
   onTheme: (id: ThemeId) => void;
@@ -16,6 +17,7 @@ interface Props {
   onToggleInspector: () => void;
   dockOpen: boolean;
   onToggleDock: () => void;
+  onOpenSettings: () => void;
 }
 
 export function TopBar({
@@ -25,6 +27,7 @@ export function TopBar({
   onRenameWorkspace,
   onNewWorkspace,
   onCloseWorkspace,
+  onColorWorkspace,
   health,
   theme,
   onTheme,
@@ -32,6 +35,7 @@ export function TopBar({
   onToggleInspector,
   dockOpen,
   onToggleDock,
+  onOpenSettings,
 }: Props) {
   const active = workspaces.find((w) => w.id === activeWorkspaceId);
 
@@ -43,21 +47,31 @@ export function TopBar({
       </div>
 
       <div className="workspace-tabs" role="tablist" aria-label="Workspaces">
-        {workspaces.map((w) => (
+        {workspaces.map((w, i) => (
           <button
             key={w.id}
             type="button"
             role="tab"
             aria-selected={w.id === activeWorkspaceId}
-            className={w.id === activeWorkspaceId ? "workspace-tab active" : "workspace-tab"}
+            className={
+              w.id === activeWorkspaceId
+                ? `workspace-tab active color-${w.color}`
+                : `workspace-tab color-${w.color}`
+            }
             onClick={() => onSelectWorkspace(w.id)}
-            title={w.name}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              const next = TAB_COLORS[(TAB_COLORS.indexOf(w.color) + 1) % TAB_COLORS.length]!;
+              onColorWorkspace(w.id, next);
+            }}
+            title={`${w.name} (⌘${i + 1}${i < 9 ? "" : ""}) · right-click to recolor`}
           >
+            <span className="workspace-tab-dot" aria-hidden />
             <span className="workspace-tab-label">{w.name}</span>
             {workspaces.length > 1 && (
               <span
                 className="workspace-tab-x"
-                title="Close workspace tab"
+                title="Close workspace tab (⌘W)"
                 onClick={(e) => {
                   e.stopPropagation();
                   onCloseWorkspace(w.id);
@@ -72,7 +86,7 @@ export function TopBar({
           type="button"
           className="workspace-tab new"
           onClick={onNewWorkspace}
-          title="New workspace tab"
+          title="New workspace tab (⌘T)"
           aria-label="New workspace tab"
         >
           +
@@ -124,6 +138,14 @@ export function TopBar({
           title="Toggle inspector (⌘,)"
         >
           Inspect
+        </button>
+        <button
+          type="button"
+          className="chip"
+          onClick={onOpenSettings}
+          title="Settings"
+        >
+          Settings
         </button>
       </div>
     </header>

@@ -433,7 +433,7 @@
 .cmd-block-head {
   width: 100%;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: 0.5rem;
   align-items: center;
   text-align: left;
@@ -512,12 +512,23 @@
 }
 
 .kanban-col header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 0.45rem 0.6rem;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.kanban-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: color-mix(in oklab, var(--accent-dim) 40%, transparent);
+  padding: 0.05rem 0.35rem;
+  font-size: 0.68rem;
 }
 
 .kanban-cards {
@@ -1243,6 +1254,91 @@
 .workspace-tab-x:hover {
   opacity: 1;
   color: var(--danger, #f66);
+}
+
+.workspace-tab-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex-shrink: 0;
+  background: var(--tab-color, var(--accent));
+}
+
+.workspace-tab.color-green { --tab-color: #3dcf8e; }
+.workspace-tab.color-amber { --tab-color: #e0b35a; }
+.workspace-tab.color-cyan { --tab-color: #38bdf8; }
+.workspace-tab.color-violet { --tab-color: #a78bfa; }
+.workspace-tab.color-rose { --tab-color: #fb7185; }
+.workspace-tab.color-slate { --tab-color: #94a3b8; }
+
+.workspace-tab.active {
+  box-shadow: inset 0 -2px 0 var(--tab-color, var(--accent));
+}
+
+.cmd-block-time {
+  font-size: 0.62rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: color-mix(in oklab, #000 55%, transparent);
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.settings-panel {
+  width: min(640px, 94vw);
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  padding: 1rem;
+  box-shadow: 0 18px 48px color-mix(in oklab, #000 45%, transparent);
+}
+
+.settings-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.settings-nav {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.settings-row select {
+  background: var(--bg-pane);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 0.3rem 0.45rem;
+}
+
+.settings-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0;
 }
 
 .top-workspace {

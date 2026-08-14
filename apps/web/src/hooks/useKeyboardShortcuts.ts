@@ -15,7 +15,9 @@ export interface ShortcutHandlers {
   onToggleSwarm?: () => void;
   onToggleInspector?: () => void;
   onQuickOpen?: () => void;
-  onCloseSession?: () => void;
+  onCloseTab?: () => void;
+  onNewWorkspace?: () => void;
+  onSwitchWorkspace?: (index: number) => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -43,10 +45,10 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
         handlers.onQuickOpen?.();
       } else if (key === "w" && !e.shiftKey) {
         e.preventDefault();
-        handlers.onCloseSession?.();
+        handlers.onCloseTab?.();
       } else if (key === "t" && !e.shiftKey) {
         e.preventDefault();
-        handlers.onNewPane?.();
+        handlers.onNewWorkspace?.();
       } else if (key === "n" && !e.shiftKey) {
         e.preventDefault();
         handlers.onNewPane?.();
@@ -64,13 +66,31 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
         handlers.onToggleInspector?.();
       } else if (e.key === "1") {
         e.preventDefault();
-        handlers.onLayout?.(1);
+        handlers.onSwitchWorkspace?.(0);
       } else if (e.key === "2") {
         e.preventDefault();
-        handlers.onLayout?.(2);
+        handlers.onSwitchWorkspace?.(1);
+      } else if (e.key === "3") {
+        e.preventDefault();
+        handlers.onSwitchWorkspace?.(2);
       } else if (e.key === "4") {
         e.preventDefault();
-        handlers.onLayout?.(4);
+        handlers.onSwitchWorkspace?.(3);
+      } else if (e.key === "5") {
+        e.preventDefault();
+        handlers.onSwitchWorkspace?.(4);
+      } else if (e.key === "6") {
+        e.preventDefault();
+        handlers.onSwitchWorkspace?.(5);
+      } else if (e.key === "7") {
+        e.preventDefault();
+        handlers.onSwitchWorkspace?.(6);
+      } else if (e.key === "8") {
+        e.preventDefault();
+        handlers.onSwitchWorkspace?.(7);
+      } else if (e.key === "9") {
+        e.preventDefault();
+        handlers.onSwitchWorkspace?.(8);
       } else if (e.key === "0") {
         e.preventDefault();
         handlers.onLayout?.(16);

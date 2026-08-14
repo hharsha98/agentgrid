@@ -3,24 +3,58 @@ export type ThemeId =
   | "amber"
   | "contrast"
   | "void"
+  | "ghost"
   | "plasma"
+  | "carbon"
+  | "hex"
   | "tokyo"
+  | "obsidian"
+  | "nebula"
+  | "storm"
+  | "infrared"
+  | "nova"
+  | "stealth"
+  | "hologram"
   | "dracula"
   | "synthwave"
-  | "carbon"
-  | "abyss";
+  | "cybernetics"
+  | "quantum"
+  | "mecha"
+  | "abyss"
+  | "paper"
+  | "chalk"
+  | "solar"
+  | "arctic"
+  | "ivory";
 
 export const THEME_IDS: ThemeId[] = [
   "phosphor",
   "amber",
   "contrast",
   "void",
+  "ghost",
   "plasma",
+  "carbon",
+  "hex",
   "tokyo",
+  "obsidian",
+  "nebula",
+  "storm",
+  "infrared",
+  "nova",
+  "stealth",
+  "hologram",
   "dracula",
   "synthwave",
-  "carbon",
+  "cybernetics",
+  "quantum",
+  "mecha",
   "abyss",
+  "paper",
+  "chalk",
+  "solar",
+  "arctic",
+  "ivory",
 ];
 
 export const THEME_LABELS: Record<ThemeId, string> = {
@@ -28,13 +62,32 @@ export const THEME_LABELS: Record<ThemeId, string> = {
   amber: "Amber",
   contrast: "Contrast",
   void: "Void",
+  ghost: "Ghost",
   plasma: "Plasma",
-  tokyo: "Tokyo",
+  carbon: "Carbon",
+  hex: "Hex",
+  tokyo: "Neon Tokyo",
+  obsidian: "Obsidian",
+  nebula: "Nebula",
+  storm: "Storm",
+  infrared: "Infrared",
+  nova: "Nova",
+  stealth: "Stealth",
+  hologram: "Hologram",
   dracula: "Dracula",
   synthwave: "Synthwave",
-  carbon: "Carbon",
+  cybernetics: "Cybernetics",
+  quantum: "Quantum",
+  mecha: "Mecha",
   abyss: "Abyss",
+  paper: "Paper",
+  chalk: "Chalk",
+  solar: "Solar",
+  arctic: "Arctic",
+  ivory: "Ivory",
 };
+
+export const LIGHT_THEMES: ThemeId[] = ["paper", "chalk", "solar", "arctic", "ivory"];
 
 const STORAGE_KEY = "agentgrid.theme.v1";
 

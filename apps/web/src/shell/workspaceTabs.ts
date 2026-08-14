@@ -3,10 +3,18 @@ import { defaultTree, type PaneNode } from "../grid/splitTree";
 
 export type LayoutMode = "preset" | "free";
 
+export const TAB_COLORS = ["green", "amber", "cyan", "violet", "rose", "slate"] as const;
+export type TabColor = (typeof TAB_COLORS)[number];
+
+export function nextTabColor(index: number): TabColor {
+  return TAB_COLORS[index % TAB_COLORS.length]!;
+}
+
 /** One open workspace tab (local ADE — not cloud sync). */
 export interface OpenWorkspace {
   id: string;
   name: string;
+  color: TabColor;
   sessionIds: string[];
   layout: LayoutPreset;
   layoutMode: LayoutMode;
@@ -32,6 +40,7 @@ export function createEmptyWorkspace(
   return {
     id: seed?.id ?? newWorkspaceId(),
     name: seed?.name ?? name,
+    color: seed?.color ?? nextTabColor(0),
     sessionIds: seed?.sessionIds ?? [],
     layout: seed?.layout ?? 1,
     layoutMode: seed?.layoutMode ?? "preset",
@@ -54,11 +63,15 @@ export function loadOpenWorkspaces(fallbackName: string): {
         activeId?: string;
       };
       if (parsed.tabs?.length) {
+        const tabs = parsed.tabs.map((t, i) => ({
+          ...t,
+          color: t.color ?? nextTabColor(i),
+        }));
         const activeId =
-          parsed.activeId && parsed.tabs.some((t) => t.id === parsed.activeId)
+          parsed.activeId && tabs.some((t) => t.id === parsed.activeId)
             ? parsed.activeId
-            : parsed.tabs[0]!.id;
-        return { tabs: parsed.tabs, activeId };
+            : tabs[0]!.id;
+        return { tabs, activeId };
       }
     }
   } catch {

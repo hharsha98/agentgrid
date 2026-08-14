@@ -86,7 +86,12 @@ export function KanbanBoard({
               if (id) onMove(id, col.id);
             }}
           >
-            <header>{col.label}</header>
+            <header>
+              {col.label}
+              <span className="kanban-count">
+                {cards.filter((c) => c.column === col.id).length}
+              </span>
+            </header>
             <div className="kanban-cards">
               {cards
                 .filter((c) => c.column === col.id)

@@ -38,12 +38,15 @@ import { TopBar } from "./shell/TopBar";
 import { ActivityRail } from "./shell/ActivityRail";
 import { Inspector } from "./shell/Inspector";
 import { CommandBar } from "./shell/CommandBar";
+import { SettingsPanel } from "./shell/SettingsPanel";
 import type { AppView } from "./shell/types";
 import {
   createEmptyWorkspace,
   loadOpenWorkspaces,
+  nextTabColor,
   saveOpenWorkspaces,
   type OpenWorkspace,
+  type TabColor,
 } from "./shell/workspaceTabs";
 
 const STORAGE_KEY = "agentgrid.workspace.v1";
@@ -102,6 +105,7 @@ export function App() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [openPath, setOpenPath] = useState<{ root: string; path: string } | null>(null);
   const [splitAxis, setSplitAxis] = useState<"row" | "col">("col");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [bootTabs] = useState(() =>
     loadOpenWorkspaces(saved.workspaceName ?? "default"),
@@ -113,6 +117,8 @@ export function App() {
     return {
       id: activeWorkspaceId,
       name: workspaceName,
+      color:
+        workspaceTabs.find((w) => w.id === activeWorkspaceId)?.color ?? nextTabColor(0),
       sessionIds:
         workspaceTabs.find((w) => w.id === activeWorkspaceId)?.sessionIds ?? [],
       layout,
@@ -414,6 +420,7 @@ export function App() {
     const blank = createEmptyWorkspace(`Workspace ${workspaceTabs.length + 1}`, {
       cwd,
       agentId,
+      color: nextTabColor(workspaceTabs.length),
     });
     const updated = workspaceTabs.map((w) =>
       w.id === activeWorkspaceId ? current : w,
@@ -441,6 +448,10 @@ export function App() {
     setWorkspaceTabs((prev) =>
       prev.map((w) => (w.id === activeWorkspaceId ? { ...w, name } : w)),
     );
+  };
+
+  const colorWorkspace = (id: string, color: TabColor) => {
+    setWorkspaceTabs((prev) => prev.map((w) => (w.id === id ? { ...w, color } : w)));
   };
 
   const openWorkspace = async (id: string) => {
@@ -680,11 +691,26 @@ export function App() {
         setDockOpen(true);
         setView("grid");
       },
-      onCloseSession: () => {
-        if (activeId) void killSession(activeId);
+      onCloseTab: () => {
+        if (workspaceTabs.length > 1) closeWorkspaceTab(activeWorkspaceId);
+        else if (activeId) void killSession(activeId);
+      },
+      onNewWorkspace: () => newWorkspaceTab(),
+      onSwitchWorkspace: (index: number) => {
+        const tab = workspaceTabs[index];
+        if (tab) selectWorkspace(tab.id);
       },
     }),
-    [createSession, saveWorkspace, focusRelative, setPresetLayout, splitFocused, activeId],
+    [
+      createSession,
+      saveWorkspace,
+      focusRelative,
+      setPresetLayout,
+      splitFocused,
+      activeId,
+      workspaceTabs,
+      activeWorkspaceId,
+    ],
   );
 
   useKeyboardShortcuts(shortcutHandlers);
@@ -801,6 +827,7 @@ export function App() {
         onRenameWorkspace={renameWorkspace}
         onNewWorkspace={newWorkspaceTab}
         onCloseWorkspace={closeWorkspaceTab}
+        onColorWorkspace={colorWorkspace}
         health={health}
         theme={theme}
         onTheme={setTheme}
@@ -814,6 +841,7 @@ export function App() {
             return next;
           });
         }}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <ActivityRail
@@ -947,6 +975,13 @@ export function App() {
         activeSessionId={activeId}
         busy={busy || health !== "ok"}
         onSend={sendCommand}
+      />
+
+      <SettingsPanel
+        open={settingsOpen}
+        theme={theme}
+        onTheme={setTheme}
+        onClose={() => setSettingsOpen(false)}
       />
 
       <QuickOpen

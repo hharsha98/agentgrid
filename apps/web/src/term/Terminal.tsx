@@ -274,6 +274,13 @@ export function Terminal({ sessionId, onReady, onExit, onSplitH, onSplitV }: Pro
                 <span className="exit-code">
                   {b.exitCode === null ? "…" : `exit ${b.exitCode}`}
                 </span>
+                <span className="cmd-block-time">
+                  {new Date(b.startedAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
               </button>
               {!b.collapsed && b.output && (
                 <pre className="cmd-block-out">{b.output}</pre>
