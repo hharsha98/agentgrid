@@ -69,6 +69,8 @@ export interface AgentAvailability {
   installHint: string;
 }
 
+export type SessionStatus = "running" | "exited";
+
 export interface SessionInfo {
   id: string;
   agentId: AgentId;
@@ -77,6 +79,9 @@ export interface SessionInfo {
   rows: number;
   createdAt: string;
   title: string;
+  /** Present from 0.2.0. Older persisted clients should treat missing as running. */
+  status?: SessionStatus;
+  exitCode?: number | null;
 }
 
 export interface CreateSessionRequest {
@@ -146,7 +151,8 @@ export interface KanbanCard {
 
 export interface UpsertKanbanCardRequest {
   id?: string;
-  title: string;
+  /** Required on create; optional on PATCH (column-only moves). */
+  title?: string;
   body?: string;
   column?: KanbanColumn;
   agentId?: AgentId;
@@ -272,4 +278,26 @@ export interface SwarmPlanNode {
   role?: SwarmRole;
   status: SwarmPlanStatus;
   children?: SwarmPlanNode[];
+}
+
+/** Honest local-runtime snapshot. Never claim a public studio URL from this object. */
+export interface GridSettings {
+  service: string;
+  version: string;
+  ports: { server: number; web: number };
+  bind: string;
+  dataDir: string;
+  fsRoots: string[];
+  mcp: {
+    transport: "stdio";
+    command: string;
+    args: string[];
+    cwdHint: string;
+    framing: Array<"content-length" | "ndjson">;
+  };
+  studio: {
+    live: false;
+    publicUrl: null;
+    reason: string;
+  };
 }

@@ -24,8 +24,26 @@ export class PathEscapeError extends Error {
 export function defaultRoots(): string[] {
   const home = homedir();
   const projects = join(home, "Projects");
-  const roots = [home];
-  if (existsSync(projects)) roots.unshift(projects);
+  const extra = (process.env.AGENTGRID_FS_ROOTS ?? "")
+    .split(sep === "\\" ? ";" : ":")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const cwd = process.cwd();
+  const roots: string[] = [];
+  const add = (path: string) => {
+    if (!path || !existsSync(path)) return;
+    let real: string;
+    try {
+      real = realpathSync.native(path);
+    } catch {
+      real = resolve(path);
+    }
+    if (!roots.includes(real)) roots.push(real);
+  };
+  add(cwd);
+  for (const p of extra) add(p);
+  add(projects);
+  add(home);
   return roots;
 }
 

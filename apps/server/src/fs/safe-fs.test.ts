@@ -38,6 +38,14 @@ describe("safe-fs", () => {
     expect(readFile(r, "new/file.txt").content).toBe("data");
   });
 
+  it("includes process.cwd in default roots", async () => {
+    const { defaultRoots } = await import("./safe-fs.js");
+    const roots = defaultRoots();
+    expect(roots.length).toBeGreaterThan(0);
+    const cwdReal = process.cwd();
+    expect(roots.some((r) => r === cwdReal || cwdReal.startsWith(r))).toBe(true);
+  });
+
   it("stats files under root", () => {
     const r = root();
     writeFileSync(join(r, "a.txt"), "hello");

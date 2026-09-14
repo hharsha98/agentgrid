@@ -1,45 +1,51 @@
 # agentgrid
 
-**agentgrid** is a BridgeSpace-inspired *agentic development environment* —
-mission control for running multiple AI coding agents side by side in one
-browser window.
+**agentgrid** is a local *agentic development environment* for the **Cursor lane**:
+mission control for running Claude Code, **cursor-agent**, Codex, Gemini CLI, and
+plain shells side by side in one browser window (or an optional Tauri shell).
 
-This is the **Cursor lane**. It is intentionally separate from
-[`vibedeck`](https://github.com/hharsha98/vibedeck) (Claude Code’s project).
-Do not merge the two repos.
+It is **not** [Vibespace](https://github.com/hharsha98/Vibespace) (the related
+desktop ADE) and **not** [Agent Fleet](https://github.com/hharsha98/agentfleet)
+(the multi-agent ops platform). Do not merge those repos into this one. Ports
+**4318 / 5318** are reserved so a Vibespace checkout can run at the same time.
 
-Feature comparison with BridgeSpace: [docs/BRIDGESPACE-PARITY.md](./docs/BRIDGESPACE-PARITY.md).
+**Studio:** this project is **not Live** on agentic-systems-studio.com. See
+[docs/STUDIO.md](./docs/STUDIO.md).
 
-| | vibedeck (Claude Code) | agentgrid (Cursor) |
+Honest feature status (what works vs what is a stub): [docs/STATUS.md](./docs/STATUS.md).
+BridgeSpace-inspired local ADE comparison: [docs/BRIDGESPACE-PARITY.md](./docs/BRIDGESPACE-PARITY.md).
+
+## What is verified
+
+CI (`pnpm typecheck && pnpm lint && pnpm test && pnpm build`) covers the
+critical local paths: health, agent detection, PTY create/list/kill, session
+exit, WebSocket I/O, workspace templates, kanban create/dispatch/exit-sync,
+safe filesystem, memory notes, skills apply, prompts apply, swarm
+mail/plan/launch, MCP JSON-RPC (Content-Length + NDJSON) including local
+memory tools.
+
+| Surface | Status | Notes |
 |---|---|---|
-| Folder | `Projects/vibedeck` | `Projects/agentgrid` |
-| Ports | 4317 / 5317 | **4318 / 5318** |
-| GitHub | `hharsha98/vibedeck` | `hharsha98/agentgrid` |
-
-## What it does today
-
-- Local Fastify server that spawns real PTY sessions (`node-pty`)
-- React + xterm.js UI with GPU rendering when available
-- Launch **Claude Code**, **cursor-agent**, **Codex**, **Gemini CLI**, or a plain **shell**
-- Layout presets: 1 / 2 / 4 / 6 / 8 / 12 / **16** panes (BridgeSpace-style grids)
-- Named workspace label; layout / cwd / agent preference saved in the browser
-- Saved workspace templates on disk (`~/.agentgrid/workspaces.json`) with one-click relaunch
-- Keyboard shortcuts (⌘/Ctrl+1/2/4, Enter, S, [ ], Shift+T cycles theme)
-- Themes: Phosphor (green), Amber (warm CRT), Contrast (high-contrast)
-- Warp-style command blocks for shell panes (OSC 133)
-- Kanban board with Dispatch → agent session
-- Files view with **Monaco** editor (safe browse/edit under Projects/home) + shared Memory notes + MCP
-- Swarm missions (coordinator / builder / scout / reviewer) with file ownership claims
-- Skills library — apply bundled prompts (security-review, commit-and-push, seo-audit) into a pane
-- Optional **Tauri desktop** shell (`pnpm desktop:dev`) wrapping the same UI
-- Session list survives browser refresh (server keeps PTYs alive until you kill them)
+| Terminals / PTY grid | **Works** | Real `node-pty` sessions; layout presets 1–16; free split |
+| Agents | **Works** | PATH detection; missing CLIs return 409 with install hint |
+| Kanban dispatch | **Works** | Dispatch opens a pane; shell tasks are *not* executed as commands |
+| Files + Monaco | **Works** | Browse/edit under allowed roots (cwd + home + `~/Projects`) |
+| Memory notes | **Works** | `~/.agentgrid/memory/*.md` |
+| MCP | **Works** | STDIO; Content-Length (Cursor/Claude) and NDJSON; live tools need :4318 |
+| Settings | **Works** | Runtime, PATH agents, MCP snippet, honest non-Live studio note |
+| Swarm | **Partial** | Spawns 4 PTYs with role prompts; mailbox/plan/claims are local JSON — not OS-enforced |
+| Skills / prompts | **Works** | Writes bundled/saved text into a live pane |
+| Command blocks | **Partial** | OSC 133 for bundled zsh/bash integration; not `sh` / agent TUIs |
+| Desktop (Tauri) | **Partial** | `pnpm desktop:dev` wraps the same UI; packaging is not CI-verified here |
+| Public studio URL | **No** | Intentionally not claimed |
 
 ## Quickstart
 
 Needs **Node 22** and **pnpm 11.15.1**.
 
 ```bash
-cd ~/Projects/agentgrid
+git clone https://github.com/hharsha98/agentgrid.git
+cd agentgrid
 pnpm install
 pnpm dev
 ```
@@ -49,27 +55,40 @@ Open **http://localhost:5318**
 - Server listens on **http://127.0.0.1:4318**
 - Web proxies `/api` (including WebSockets) to the server
 
-Desktop shell (needs Rust via `rustup`; auto-starts the API on :4318):
+Optional desktop shell (needs Rust via `rustup`; auto-starts the API on :4318):
 
 ```bash
 pnpm desktop:dev
 ```
 
-## Roadmap
+### What CI actually runs
 
-- [x] **Phase 0 — Foundation**: pnpm workspace, CI, shared protocol, Fastify + React
-- [x] **Phase 1 — Terminal core**: PTY sessions, WebSocket I/O, scrollback, agent PATH detection
-- [x] **Phase 2 — Grid (MVP)**: 1 / 2 / 4 pane layouts
-- [x] **Phase 3 — Workspaces**: named workspace + browser prefs
-- [x] **Phase 3b — Workspace templates**: saved under `~/.agentgrid/workspaces.json`, open/launch from sidebar
-- [x] **Phase 4 — Keyboard shortcuts + themes**: layout, launch, save, focus; Phosphor / Amber / Contrast
-- [x] **Phase 5 — Command blocks** (OSC 133 markers + collapsible command list for shell panes)
-- [x] **Phase 6 — File tree + light editor** (Files view; text files under allowed roots)
-- [x] **Phase 7 — Kanban board** that dispatches agents into panes
-- [x] **Phase 8 — Shared memory / MCP** (`~/.agentgrid/memory` + `@agentgrid/mcp` STDIO server)
-- [x] **Phase 9 — Swarm roles + file ownership** (coordinator/builder/scout/reviewer)
-- [x] **Phase 10 — Skills** (security-review, commit-and-push, seo-audit)
-- [x] **Phase 11 — Desktop app (Tauri)** (`pnpm desktop:dev`)
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
+
+PTY tests spawn a real shell. They do **not** require Claude/Cursor/Codex to be
+installed. A cloud VM without a working `node-pty` build will fail those tests —
+that is a missing native dependency, not a product regression.
+
+## Shared memory MCP
+
+```bash
+pnpm --filter @agentgrid/mcp start
+```
+
+Point Cursor / Claude MCP config at that command (`cwd` = this repo). The server
+speaks JSON-RPC 2.0 over stdio with **Content-Length** framing (and also
+newline-delimited JSON).
+
+**Local memory tools** (no API required): `memory_list`, `memory_read`,
+`memory_write`, `memory_delete` — notes in `~/.agentgrid/memory/`.
+
+**Live API tools** (need server on :4318): `health`, `agents_list`,
+`sessions_list`, `fs_*`, `kanban_*`, `swarm_*`, `skills_*`, `workspaces_list`.
 
 ## Project layout
 
@@ -81,27 +100,9 @@ agentgrid/
 │   └── desktop/   # Tauri native shell around the web UI
 └── packages/
     ├── shared/    # Types + agent specs shared by both sides
-    └── mcp/       # STDIO MCP for shared memory
+    └── mcp/       # STDIO MCP for shared memory + live API
 ```
 
 ## License
 
 MIT — see [LICENSE](./LICENSE).
-
-
-## Shared memory MCP
-
-Agents can read/write the same notes via a small STDIO MCP server:
-
-```bash
-pnpm --filter @agentgrid/mcp start
-```
-
-Point Claude Code / Cursor MCP config at that command (cwd = this repo).
-
-**Local memory tools:** `memory_list`, `memory_read`, `memory_write`, `memory_delete`
-(notes in `~/.agentgrid/memory/`).
-
-**Live API tools** (need server on :4318): `health`, `agents_list`, `sessions_list`,
-`fs_roots`, `fs_tree`, `fs_read`, `kanban_list`, `kanban_create`, `swarm_list`,
-`skills_list`, `workspaces_list`.

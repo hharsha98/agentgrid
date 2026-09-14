@@ -139,6 +139,16 @@ describe("HTTP API", () => {
     sessions.dispose(body.session.id);
   });
 
+  it("defaults new kanban cards to the shell agent", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/api/kanban/cards",
+      payload: { title: "No agent specified" },
+    });
+    expect(create.statusCode).toBe(201);
+    expect((create.json() as { card: { agentId: string } }).card.agentId).toBe("shell");
+  });
+
 
   it("reads and writes files under allowed roots", async () => {
     const write = await app.inject({
@@ -275,6 +285,152 @@ describe("HTTP API", () => {
     expect(body.swarm.members).toHaveLength(4);
     expect(body.sessions).toHaveLength(4);
     for (const s of body.sessions) sessions.dispose(s.id);
+  });
+
+  it("exposes settings without claiming a studio Live URL", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/settings" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      studio: { live: boolean; publicUrl: string | null };
+      fsRoots: string[];
+      mcp: { framing: string[] };
+    };
+    expect(body.studio.live).toBe(false);
+    expect(body.studio.publicUrl).toBeNull();
+    expect(body.fsRoots.length).toBeGreaterThan(0);
+    expect(body.mcp.framing).toContain("content-length");
+  });
+
+  it("rejects a missing working directory", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { agentId: "shell", cwd: join(tmpDir, "no-such-dir") },
+    });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { error: string }).error).toMatch(/Working directory/);
+  });
+
+  it("marks a session exited after the process ends", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { agentId: "shell", title: "exit-soon" },
+    });
+    const sid = (create.json() as { session: { id: string; status?: string } }).session.id;
+    sessions.write(sid, "exit\n");
+    let status = "running";
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      const info = sessions.get(sid);
+      if (info?.status === "exited") {
+        status = "exited";
+        break;
+      }
+    }
+    expect(status).toBe("exited");
+    expect(sessions.write(sid, "echo still?\n")).toBe(false);
+    const apply = await app.inject({
+      method: "POST",
+      url: "/api/skills/security-review/apply",
+      payload: { sessionId: sid },
+    });
+    expect(apply.statusCode).toBe(409);
+    sessions.dispose(sid);
+  });
+
+  it("applies a skill into a live shell session", async () => {
+    const session = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { agentId: "shell", title: "skill-target" },
+    });
+    const sid = (session.json() as { session: { id: string } }).session.id;
+    const apply = await app.inject({
+      method: "POST",
+      url: "/api/skills/security-review/apply",
+      payload: { sessionId: sid },
+    });
+    expect(apply.statusCode).toBe(200);
+    sessions.dispose(sid);
+  });
+
+  it("streams PTY bytes over the session websocket", async () => {
+    const create = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { agentId: "shell", title: "ws-shell" },
+    });
+    const sid = (create.json() as { session: { id: string } }).session.id;
+
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const addr = app.server.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/sessions/${sid}/ws`);
+    const got: Array<{ type: string; data?: string }> = [];
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("websocket timeout")), 12000);
+        ws.addEventListener("message", (ev) => {
+          const msg = JSON.parse(String(ev.data)) as { type: string; data?: string };
+          got.push(msg);
+          if (msg.type === "ready") {
+            ws.send(JSON.stringify({ type: "input", data: "printf 'agentgrid-ws-ok\\n'\n" }));
+          }
+          if (msg.type === "output" && (msg.data ?? "").includes("agentgrid-ws-ok")) {
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+        ws.addEventListener("error", () => {
+          clearTimeout(timer);
+          reject(new Error("websocket error"));
+        });
+      });
+    } finally {
+      ws.close();
+      sessions.dispose(sid);
+    }
+    expect(got.some((m) => m.type === "ready")).toBe(true);
+  }, 15000);
+
+  it("posts swarm mail and updates plan nodes", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/swarm",
+      payload: {
+        name: "Mail",
+        mission: "Talk",
+        roles: {
+          coordinator: "shell",
+          builder: "shell",
+          scout: "shell",
+          reviewer: "shell",
+        },
+      },
+    });
+    const created = res.json() as {
+      swarm: { id: string; plan: { id: string }[]; members: { sessionId?: string }[] };
+      sessions: { id: string }[];
+    };
+    const mail = await app.inject({
+      method: "POST",
+      url: `/api/swarm/${created.swarm.id}/mail`,
+      payload: { fromRole: "human", body: "hello team" },
+    });
+    expect(mail.statusCode).toBe(200);
+    expect(
+      (mail.json() as { swarm: { mailbox: { body: string }[] } }).swarm.mailbox[0]?.body,
+    ).toBe("hello team");
+    const nodeId = created.swarm.plan[0]!.id;
+    const plan = await app.inject({
+      method: "POST",
+      url: `/api/swarm/${created.swarm.id}/plan`,
+      payload: { nodeId, status: "doing" },
+    });
+    expect(plan.statusCode).toBe(200);
+    for (const s of created.sessions) sessions.dispose(s.id);
   });
 
 });

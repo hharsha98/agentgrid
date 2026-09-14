@@ -46,6 +46,7 @@ export function FilesPanel({ initialRoot }: Props) {
   const [editorTheme, setEditorTheme] = useState(monacoTheme);
   const [mtimeMs, setMtimeMs] = useState<number | null>(null);
   const [stale, setStale] = useState(false);
+  const [newName, setNewName] = useState("");
 
   const language = useMemo(
     () => (file ? languageForPath(file.path) : "plaintext"),
@@ -156,6 +157,46 @@ export function FilesPanel({ initialRoot }: Props) {
       });
       setFile(res.file);
       setDirty(false);
+      setStale(false);
+      try {
+        const st = await api<{ stat: { mtimeMs: number } }>(
+          `/api/fs/stat?root=${encodeURIComponent(root)}&path=${encodeURIComponent(res.file.path)}`,
+        );
+        setMtimeMs(st.stat.mtimeMs);
+      } catch {
+        setMtimeMs(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createFile = async () => {
+    if (!root || !newName.trim()) return;
+    const rel = cwd === "." || cwd === "" ? newName.trim() : `${cwd}/${newName.trim()}`;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ file: FsFileContent }>("/api/fs/file", {
+        method: "PUT",
+        body: JSON.stringify({ root, path: rel, content: "" }),
+      });
+      setNewName("");
+      await loadTree(root, cwd);
+      setFile(res.file);
+      setDraft(res.file.content);
+      setDirty(false);
+      setStale(false);
+      try {
+        const st = await api<{ stat: { mtimeMs: number } }>(
+          `/api/fs/stat?root=${encodeURIComponent(root)}&path=${encodeURIComponent(res.file.path)}`,
+        );
+        setMtimeMs(st.stat.mtimeMs);
+      } catch {
+        setMtimeMs(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -166,6 +207,17 @@ export function FilesPanel({ initialRoot }: Props) {
   const visible = entries.filter((e) =>
     filter.trim() ? e.name.toLowerCase().includes(filter.trim().toLowerCase()) : true,
   );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "s") return;
+      if (!file || !dirty) return;
+      e.preventDefault();
+      void save();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [file, dirty, save]);
 
   return (
     <div className="files-panel">
@@ -196,6 +248,25 @@ export function FilesPanel({ initialRoot }: Props) {
         />
         <button type="button" className="primary" disabled={!dirty || busy || !file} onClick={() => void save()}>
           Save{dirty ? " *" : ""}
+        </button>
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="new file name"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && newName.trim()) {
+              e.preventDefault();
+              void createFile();
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy || !root || !newName.trim()}
+          onClick={() => void createFile()}
+        >
+          New file
         </button>
       </div>
       {error && <pre className="error">{error}</pre>}

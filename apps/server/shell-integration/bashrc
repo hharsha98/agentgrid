@@ -1,0 +1,25 @@
+# Minimal bashrc for agentgrid command-block markers (OSC 133).
+# Loaded when the shell agent is spawned with `bash --rcfile` this file.
+
+[[ -f "$HOME/.bashrc" ]] && source "$HOME/.bashrc"
+
+# PS0 fires just before a command runs (bash 4.4+).
+PS0="${PS0}"$'\033]133;C\007'
+
+__agentgrid_prompt() {
+  local code=$?
+  printf '\033]133;D;%s\007\033]133;A\007' "$code"
+}
+
+# Prepend so $? is the previous command, not another PROMPT_COMMAND hook.
+if [[ -n "${PROMPT_COMMAND+x}" ]]; then
+  if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then
+    PROMPT_COMMAND=(__agentgrid_prompt "${PROMPT_COMMAND[@]}")
+  else
+    PROMPT_COMMAND="__agentgrid_prompt; ${PROMPT_COMMAND}"
+  fi
+else
+  PROMPT_COMMAND=__agentgrid_prompt
+fi
+
+printf '\033]133;A\007'
