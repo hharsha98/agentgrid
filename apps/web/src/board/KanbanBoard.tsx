@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AgentId, KanbanCard, KanbanColumn } from "@agentgrid/shared";
 
 const COLUMNS: { id: KanbanColumn; label: string }[] = [
@@ -27,10 +27,18 @@ export function KanbanBoard({
   onDispatch,
   onDelete,
 }: Props) {
+  const firstAvailable = agents.find((a) => a.available)?.id ?? "shell";
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [agentId, setAgentId] = useState<AgentId>("claude");
+  const [agentId, setAgentId] = useState<AgentId>(firstAvailable);
   const [dragOver, setDragOver] = useState<KanbanColumn | null>(null);
+
+  useEffect(() => {
+    if (!agents.some((a) => a.id === agentId && a.available)) {
+      const next = agents.find((a) => a.available)?.id;
+      if (next) setAgentId(next);
+    }
+  }, [agents, agentId]);
 
   const submit = () => {
     if (!title.trim()) return;

@@ -1,11 +1,15 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyReply } from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import {
   DEFAULT_SERVER_PORT,
+  DEFAULT_WEB_PORT,
   isAgentId,
   type ClientMessage,
   type CreateSessionRequest,
+  type GridSettings,
   type ServerMessage,
   type DispatchKanbanCardRequest,
   type UpsertKanbanCardRequest,
@@ -17,8 +21,14 @@ import {
   type UpsertPromptRequest,
   type ApplyPromptRequest,
 } from "@agentgrid/shared";
+import { formatInitialInput } from "./pty/dispatch-input.js";
 import { detectAgents } from "./pty/agents.js";
-import { AgentMissingError, SessionManager } from "./pty/session-manager.js";
+import {
+  AgentMissingError,
+  InvalidCwdError,
+  SessionSpawnError,
+  SessionManager,
+} from "./pty/session-manager.js";
 import { WorkspaceStore } from "./workspaces/store.js";
 import { KanbanStore } from "./kanban/store.js";
 import {
@@ -52,6 +62,21 @@ export async function buildApp(options?: {
   const skills = options?.skillStore ?? new SkillStore();
   const prompts = options?.promptStore ?? new PromptStore();
   const fsRoots = options?.fsRoots ?? defaultRoots();
+  const dataDir = join(homedir(), ".agentgrid");
+
+  const spawnFail = (reply: FastifyReply, err: unknown) => {
+    if (err instanceof AgentMissingError) {
+      return reply.code(409).send({
+        error: err.message,
+        agentId: err.agentId,
+        installHint: err.installHint,
+      });
+    }
+    if (err instanceof InvalidCwdError || err instanceof SessionSpawnError) {
+      return reply.code(400).send({ error: err.message });
+    }
+    throw err;
+  };
 
   // When a dispatched agent session exits, advance its kanban card.
   sessions.on("session-exit", (ev: { sessionId: string; code: number | null }) => {
@@ -79,6 +104,31 @@ export async function buildApp(options?: {
     port: Number(process.env.PORT ?? DEFAULT_SERVER_PORT),
   }));
 
+  app.get("/api/settings", async (): Promise<GridSettings> => ({
+    service: "agentgrid",
+    version: "0.1.0",
+    ports: {
+      server: Number(process.env.PORT ?? DEFAULT_SERVER_PORT),
+      web: DEFAULT_WEB_PORT,
+    },
+    bind: "127.0.0.1",
+    dataDir,
+    fsRoots,
+    mcp: {
+      transport: "stdio",
+      command: "pnpm",
+      args: ["--filter", "@agentgrid/mcp", "start"],
+      cwdHint: "repository root",
+      framing: ["content-length", "ndjson"],
+    },
+    studio: {
+      live: false,
+      publicUrl: null,
+      reason:
+        "Not published on agentic-systems-studio.com until Agent Grid meets the Agent Fleet quality bar (claimed features work, critical paths tested, docs honest).",
+    },
+  }));
+
   app.get("/api/agents", async () => ({ agents: detectAgents() }));
 
   app.get("/api/sessions", async () => ({ sessions: sessions.list() }));
@@ -99,14 +149,7 @@ export async function buildApp(options?: {
       });
       return reply.code(201).send({ session });
     } catch (err) {
-      if (err instanceof AgentMissingError) {
-        return reply.code(409).send({
-          error: err.message,
-          agentId: err.agentId,
-          installHint: err.installHint,
-        });
-      }
-      throw err;
+      return spawnFail(reply, err);
     }
   });
 
@@ -152,14 +195,7 @@ export async function buildApp(options?: {
       }
     } catch (err) {
       for (const s of created) sessions.dispose(s.id);
-      if (err instanceof AgentMissingError) {
-        return reply.code(409).send({
-          error: err.message,
-          agentId: err.agentId,
-          installHint: err.installHint,
-        });
-      }
-      throw err;
+      return spawnFail(reply, err);
     }
 
     return reply.code(201).send({ workspace, sessions: created });
@@ -210,7 +246,7 @@ export async function buildApp(options?: {
           agentId,
           cwd: req.body?.cwd,
           title: card.title,
-          initialInput: agentId === "shell" ? prompt : prompt,
+          initialInput: prompt,
         });
         const updated = kanban.update(card.id, {
           column: "in_progress",
@@ -219,14 +255,7 @@ export async function buildApp(options?: {
         });
         return reply.code(201).send({ card: updated, session });
       } catch (err) {
-        if (err instanceof AgentMissingError) {
-          return reply.code(409).send({
-            error: err.message,
-            agentId: err.agentId,
-            installHint: err.installHint,
-          });
-        }
-        throw err;
+        return spawnFail(reply, err);
       }
     },
   );
@@ -359,8 +388,12 @@ export async function buildApp(options?: {
       if (!prompt) return reply.code(404).send({ error: "prompt not found" });
       const sessionId = req.body?.sessionId;
       if (!sessionId) return reply.code(400).send({ error: "sessionId required" });
-      if (!sessions.get(sessionId)) return reply.code(404).send({ error: "session not found" });
-      const ok = sessions.write(sessionId, prompt.body.endsWith("\n") ? prompt.body : `${prompt.body}\n`);
+      const target = sessions.get(sessionId);
+      if (!target) return reply.code(404).send({ error: "session not found" });
+      if (target.status === "exited") {
+        return reply.code(409).send({ error: "session has exited" });
+      }
+      const ok = sessions.write(sessionId, formatInitialInput(target.agentId, prompt.body));
       if (!ok) return reply.code(500).send({ error: "failed to write to session" });
       return { prompt, sessionId };
     },
@@ -372,10 +405,14 @@ export async function buildApp(options?: {
       const skill = skills.get(req.params.id);
       if (!skill) return reply.code(404).send({ error: "skill not found" });
       const sessionId = req.body?.sessionId;
-      if (!sessionId || !sessions.get(sessionId)) {
+      const target = sessionId ? sessions.get(sessionId) : undefined;
+      if (!sessionId || !target) {
         return reply.code(404).send({ error: "session not found" });
       }
-      const ok = sessions.write(sessionId, skill.prompt.endsWith("\n") ? skill.prompt : `${skill.prompt}\n`);
+      if (target.status === "exited") {
+        return reply.code(409).send({ error: "session has exited" });
+      }
+      const ok = sessions.write(sessionId, formatInitialInput(target.agentId, skill.prompt));
       if (!ok) return reply.code(500).send({ error: "failed to write to session" });
       return { ok: true, skill: { id: skill.id, name: skill.name } };
     },
@@ -425,12 +462,12 @@ export async function buildApp(options?: {
       const swarm = swarms.attachSessions(draft.id, sessionByRole);
       return reply.code(201).send({ swarm, sessions: createdSessions });
     } catch (err) {
-      if (err instanceof AgentMissingError) {
-        return reply.code(409).send({
-          error: err.message,
-          agentId: err.agentId,
-          installHint: err.installHint,
-        });
+      if (
+        err instanceof AgentMissingError ||
+        err instanceof InvalidCwdError ||
+        err instanceof SessionSpawnError
+      ) {
+        return spawnFail(reply, err);
       }
       return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
     }

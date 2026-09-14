@@ -6,7 +6,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import type { ClientMessage, ServerMessage, SessionInfo } from "@agentgrid/shared";
 import { CommandBlockTracker, type CommandBlock } from "./commandBlocks";
-import { api, wsSessionUrl } from "../lib/http";
+import { wsSessionUrl } from "../lib/http";
 import { readXtermTheme } from "../lib/themes";
 import "@xterm/xterm/css/xterm.css";
 
@@ -129,15 +129,10 @@ export function Terminal({ sessionId, onReady, onExit }: Props) {
     host.addEventListener("contextmenu", onCtx);
 
     const onDrop = (e: DragEvent) => {
-      e.preventDefault();
       const skillId = e.dataTransfer?.getData("application/x-agentgrid-skill");
-      if (skillId) {
-        void api(`/api/skills/${skillId}/apply`, {
-          method: "POST",
-          body: JSON.stringify({ sessionId }),
-        }).catch(() => undefined);
-        return;
-      }
+      if (skillId) return; // pane chrome applies the skill once
+      e.preventDefault();
+      e.stopPropagation();
       const file = e.dataTransfer?.files?.[0];
       if (file) send({ type: "input", data: file.name });
     };

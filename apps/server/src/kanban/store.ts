@@ -68,7 +68,8 @@ export class KanbanStore {
   upsert(input: UpsertKanbanCardRequest): KanbanCard {
     const title = input.title?.trim();
     if (!title) throw new Error("title is required");
-    const agentId: AgentId = input.agentId && isAgentId(input.agentId) ? input.agentId : "claude";
+    // Default to shell so creating a card never requires a missing paid CLI.
+    const agentId: AgentId = input.agentId && isAgentId(input.agentId) ? input.agentId : "shell";
     const column: KanbanColumn =
       input.column && isColumn(input.column) ? input.column : "todo";
 

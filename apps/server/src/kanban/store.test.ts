@@ -16,11 +16,11 @@ describe("KanbanStore", () => {
     return new KanbanStore(join(dir, "kanban.json"));
   }
 
-  it("creates cards in todo by default", () => {
+  it("creates cards in todo by default with shell agent", () => {
     const store = fresh();
     const card = store.upsert({ title: "Fix login" });
     expect(card.column).toBe("todo");
-    expect(card.agentId).toBe("claude");
+    expect(card.agentId).toBe("shell");
     expect(store.list()).toHaveLength(1);
   });
 

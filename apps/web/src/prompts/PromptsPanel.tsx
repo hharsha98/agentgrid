@@ -111,7 +111,8 @@ export function PromptsPanel({ sessions, activeSessionId, busy }: Props) {
           <option value="">Select session…</option>
           {sessions.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.title} ({s.agentId})
+              {s.title} ({s.agentId}
+              {s.status === "exited" ? ", exited" : ""})
             </option>
           ))}
         </select>

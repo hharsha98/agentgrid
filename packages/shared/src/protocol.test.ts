@@ -8,7 +8,7 @@ import {
 } from "./protocol.js";
 
 describe("protocol", () => {
-  it("lists the four built-in agents", () => {
+  it("lists the built-in agents", () => {
     expect(Object.keys(AGENT_SPECS).sort()).toEqual([
       "claude",
       "codex",
@@ -18,7 +18,7 @@ describe("protocol", () => {
     ]);
   });
 
-  it("uses ports that do not collide with vibedeck", () => {
+  it("uses ports that do not collide with Vibespace / vibedeck", () => {
     expect(DEFAULT_SERVER_PORT).toBe(4318);
     expect(DEFAULT_WEB_PORT).toBe(5318);
     expect(DEFAULT_SERVER_PORT).not.toBe(4317);

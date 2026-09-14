@@ -57,7 +57,8 @@ export function SkillsPanel({ sessions, activeSessionId, busy, onApplied }: Prop
           <option value="">Select session…</option>
           {sessions.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.title} ({s.agentId})
+              {s.title} ({s.agentId}
+              {s.status === "exited" ? ", exited" : ""})
             </option>
           ))}
         </select>

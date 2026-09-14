@@ -1,5 +1,5 @@
 # Minimal zshrc for agentgrid command-block markers (OSC 133).
-# Loaded when ZDOTDIR points at this folder.
+# Loaded when ZDOTDIR points at this folder (zsh reads $ZDOTDIR/.zshrc).
 
 [[ -f "$HOME/.zshrc" ]] && source "$HOME/.zshrc"
 

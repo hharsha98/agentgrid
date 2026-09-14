@@ -1,11 +1,20 @@
 import { accessSync, constants } from "node:fs";
-import { delimiter, isAbsolute } from "node:path";
+import { delimiter, isAbsolute, join } from "node:path";
 import {
   AGENT_SPECS,
   type AgentAvailability,
   type AgentId,
   type AgentSpec,
 } from "@agentgrid/shared";
+
+function executableCandidates(command: string): string[] {
+  if (process.platform !== "win32") return [command];
+  const lower = command.toLowerCase();
+  if (lower.endsWith(".exe") || lower.endsWith(".cmd") || lower.endsWith(".bat")) {
+    return [command];
+  }
+  return [command, `${command}.exe`, `${command}.cmd`, `${command}.bat`];
+}
 
 function which(command: string): string | null {
   if (isAbsolute(command)) {
@@ -20,12 +29,14 @@ function which(command: string): string | null {
   const pathEnv = process.env.PATH ?? "";
   for (const dir of pathEnv.split(delimiter)) {
     if (!dir) continue;
-    const candidate = `${dir}/${command}`;
-    try {
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      // try next
+    for (const name of executableCandidates(command)) {
+      const candidate = join(dir, name);
+      try {
+        accessSync(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // try next
+      }
     }
   }
   return null;

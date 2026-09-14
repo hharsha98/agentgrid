@@ -1,6 +1,19 @@
 import { useEffect } from "react";
 import type { LayoutPreset } from "@agentgrid/shared";
 
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== "object") return false;
+  const el = target as HTMLElement;
+  if (typeof el.tagName !== "string") return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName.toUpperCase();
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (typeof el.closest === "function") {
+    return Boolean(el.closest(".monaco-editor, .files-monaco, textarea"));
+  }
+  return false;
+}
+
 export interface ShortcutHandlers {
   onLayout?: (layout: LayoutPreset) => void;
   onLaunchPane?: () => void;
@@ -11,14 +24,11 @@ export interface ShortcutHandlers {
   onCycleTheme?: () => void;
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
-}
-
 /**
- * Keyboard shortcuts (macOS-friendly: Meta, also Ctrl):
+ * Keyboard shortcuts (macOS-friendly: Meta, also Ctrl).
+ * All of these are skipped while typing in inputs, textareas, or Monaco
+ * so Cmd+S in the Files editor does not save a workspace template.
+ *
  * - Meta/Ctrl+1|2|4|0 → layout (0 = 16)
  * - Meta/Ctrl+Enter  → launch pane
  * - Meta/Ctrl+S      → save workspace template
@@ -29,9 +39,11 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return;
+
       const mod = e.metaKey || e.ctrlKey;
 
-      if (!mod && e.key === "?" && !isTypingTarget(e.target)) {
+      if (!mod && e.key === "?") {
         e.preventDefault();
         handlers.onToggleHelp?.();
         return;

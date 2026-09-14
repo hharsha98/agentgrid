@@ -15,6 +15,7 @@ import { MemoryPanel } from "./files/MemoryPanel";
 import { SwarmPanel } from "./swarm/SwarmPanel";
 import { SkillsPanel } from "./swarm/SkillsPanel";
 import { PromptsPanel } from "./prompts/PromptsPanel";
+import { SettingsPanel } from "./settings/SettingsPanel";
 import { SplitLayout } from "./grid/SplitLayout";
 import {
   defaultTree,
@@ -23,6 +24,7 @@ import {
 } from "./grid/splitTree";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { api } from "./lib/http";
+import { sameSessions } from "./lib/sessions";
 import {
   THEME_IDS,
   THEME_LABELS,
@@ -80,7 +82,7 @@ export function App() {
   const [workspaceName, setWorkspaceName] = useState(saved.workspaceName ?? "default");
   const [showHelp, setShowHelp] = useState(false);
   const [view, setView] = useState<
-    "grid" | "board" | "files" | "memory" | "swarm" | "skills" | "prompts"
+    "grid" | "board" | "files" | "memory" | "swarm" | "skills" | "prompts" | "settings"
   >("grid");
   const [theme, setTheme] = useState<ThemeId>(() => loadTheme());
   const [cards, setCards] = useState<KanbanCard[]>([]);
@@ -97,10 +99,13 @@ export function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }, [workspaceName, layout, layoutMode, splitTree, cwd, agentId]);
 
+  const sessionIdsKey = sessions.map((s) => s.id).join(",");
+
   useEffect(() => {
     if (layoutMode !== "free") return;
-    setSplitTree((prev) => fillEmptyLeaves(prev, sessions.map((s) => s.id)));
-  }, [sessions, layoutMode]);
+    const ids = sessionIdsKey.length ? sessionIdsKey.split(",") : [];
+    setSplitTree((prev) => fillEmptyLeaves(prev, ids));
+  }, [sessionIdsKey, layoutMode]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -113,7 +118,7 @@ export function App() {
       const a = await api<{ agents: AgentAvailability[] }>("/api/agents");
       setAgents(a.agents);
       const s = await api<{ sessions: SessionInfo[] }>("/api/sessions");
-      setSessions(s.sessions);
+      setSessions((prev) => (sameSessions(prev, s.sessions) ? prev : s.sessions));
       setActiveId((prev) => prev ?? s.sessions[0]?.id ?? null);
       const w = await api<{ workspaces: WorkspaceTemplate[] }>("/api/workspaces");
       setTemplates(w.workspaces);
@@ -248,6 +253,7 @@ export function App() {
       setCwd(res.workspace.cwd ?? "");
       setSessions((prev) => [...prev, ...res.sessions]);
       setActiveId(res.sessions[0]?.id ?? null);
+      setView("grid");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -438,6 +444,7 @@ export function App() {
               ["swarm", "Swarm"],
               ["skills", "Skills"],
               ["prompts", "Prompts"],
+              ["settings", "Settings"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -630,11 +637,22 @@ export function App() {
             <button
               key={s.id}
               type="button"
-              className={s.id === activeId ? "session active" : "session"}
+              className={
+                s.id === activeId
+                  ? s.status === "exited"
+                    ? "session active exited"
+                    : "session active"
+                  : s.status === "exited"
+                    ? "session exited"
+                    : "session"
+              }
               onClick={() => setActiveId(s.id)}
             >
               <span className="session-title">{s.title}</span>
-              <span className="session-meta">{s.agentId}</span>
+              <span className="session-meta">
+                {s.agentId}
+                {s.status === "exited" ? " · exited" : ""}
+              </span>
               <span
                 className="kill"
                 role="button"
@@ -673,7 +691,7 @@ Free layout      H/V chips on panes + drag handles
         )}
 
         <p className="footnote">
-          Isolated from vibedeck. Templates live in ~/.agentgrid/workspaces.json
+          Cursor-lane ADE — isolated from Vibespace. Templates live in ~/.agentgrid/workspaces.json
         </p>
       </aside>
 
@@ -703,7 +721,6 @@ Free layout      H/V chips on panes + drag handles
             onLaunched={(swarm) => {
               setWorkspaceName(swarm.name);
               setPresetLayout(4);
-              setView("grid");
               void refresh();
             }}
           />
@@ -719,6 +736,8 @@ Free layout      H/V chips on panes + drag handles
             activeSessionId={activeId}
             busy={busy || health !== "ok"}
           />
+        ) : view === "settings" ? (
+          <SettingsPanel agents={agents} />
         ) : layoutMode === "free" ? (
           <SplitLayout
             tree={splitTree}
