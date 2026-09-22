@@ -109,6 +109,20 @@ export class KanbanStore {
     return next;
   }
 
+  /**
+   * True only for a missing file or a JSON array with zero elements.
+   * Corrupt JSON and unrecognized objects are not vacant — demo seed must not overwrite them.
+   */
+  isVacant(): boolean {
+    if (!existsSync(this.path)) return true;
+    try {
+      const parsed = JSON.parse(readFileSync(this.path, "utf8")) as unknown;
+      return Array.isArray(parsed) && parsed.length === 0;
+    } catch {
+      return false;
+    }
+  }
+
   remove(id: string): boolean {
     const all = this.list();
     const next = all.filter((c) => c.id !== id);
@@ -125,3 +139,31 @@ export class KanbanStore {
 }
 
 export const KANBAN_COLUMNS = COLUMNS;
+
+/** Starter cards for an empty board when DEMO_PUBLIC is on. Not dispatched automatically. */
+export const DEMO_BOARD: Array<Pick<KanbanCard, "title" | "agentId" | "body">> = [
+  {
+    title: "Explain the terminal grid",
+    agentId: "claude",
+    body: "Describe panes, presets, and focus in this local grid. Mention layout and how a pane is launched.",
+  },
+  {
+    title: "Sketch a four-pane layout",
+    agentId: "cursor-agent",
+    body: "Propose which agents sit in a 4-pane grid for a small UI change.",
+  },
+  {
+    title: "Check dispatch safety",
+    agentId: "codex",
+    body: "What happens when a shell kanban card is dispatched? Confirm the title is not executed as a command.",
+  },
+];
+
+/** Returns true when cards were inserted. Leaves a non-empty or unreadable board untouched. */
+export function seedDemoBoard(store: KanbanStore): boolean {
+  if (!store.isVacant()) return false;
+  for (const card of DEMO_BOARD) {
+    store.upsert({ title: card.title, agentId: card.agentId, body: card.body });
+  }
+  return true;
+}

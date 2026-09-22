@@ -16,6 +16,10 @@ pnpm install
 pnpm desktop:dev
 ```
 
+`DEMO_PUBLIC=1 pnpm desktop:dev` passes the flag through to the API. Missing
+vendor CLIs then open local simulators. The window is still this machine, not
+a studio URL.
+
 This starts the Fastify server (:4318), Vite web (:5318), and a Tauri window
 pointed at the web UI.
 

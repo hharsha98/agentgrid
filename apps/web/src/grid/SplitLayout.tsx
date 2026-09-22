@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { SessionInfo } from "@agentgrid/shared";
+import { sessionAgentLabel } from "../lib/agents";
 import { Terminal } from "../term/Terminal";
 import type { PaneNode, SplitDirection } from "./splitTree";
 import { assignSession, setRatio, splitLeaf } from "./splitTree";
@@ -81,7 +82,11 @@ function NodeView({
         <header className="pane-bar">
           <span>{session ? session.title : "Empty pane"}</span>
           <span className="pane-actions">
-            {session && <span className="pane-agent">{session.agentId}</span>}
+            {session && (
+              <span className={session.runtime === "simulated" ? "pane-agent sim" : "pane-agent"}>
+                {sessionAgentLabel(session)}
+              </span>
+            )}
             <button
               type="button"
               className="chip"

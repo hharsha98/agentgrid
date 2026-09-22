@@ -11,7 +11,8 @@ export function sameSessions(a: SessionInfo[], b: SessionInfo[]): boolean {
       s.title === other.title &&
       s.agentId === other.agentId &&
       (s.status ?? "running") === (other.status ?? "running") &&
-      (s.exitCode ?? null) === (other.exitCode ?? null)
+      (s.exitCode ?? null) === (other.exitCode ?? null) &&
+      (s.runtime ?? "native") === (other.runtime ?? "native")
     );
   });
 }

@@ -23,6 +23,7 @@ import {
 } from "@agentgrid/shared";
 import { formatInitialInput } from "./pty/dispatch-input.js";
 import { detectAgents } from "./pty/agents.js";
+import { demoPublicEnabled } from "./pty/demo-mode.js";
 import {
   AgentMissingError,
   InvalidCwdError,
@@ -30,7 +31,7 @@ import {
   SessionManager,
 } from "./pty/session-manager.js";
 import { WorkspaceStore } from "./workspaces/store.js";
-import { KanbanStore } from "./kanban/store.js";
+import { KanbanStore, seedDemoBoard } from "./kanban/store.js";
 import {
   defaultRoots,
   listDir,
@@ -52,11 +53,15 @@ export async function buildApp(options?: {
   skillStore?: SkillStore;
   promptStore?: PromptStore;
   fsRoots?: string[];
+  /** Override DEMO_PUBLIC. Tests pass false so a developer shell cannot flip them. */
+  demoPublic?: boolean;
 }) {
   const app = Fastify({ logger: true });
-  const sessions = new SessionManager();
+  const demoPublic = options?.demoPublic ?? demoPublicEnabled();
+  const sessions = new SessionManager({ demoPublic });
   const workspaces = options?.workspaceStore ?? new WorkspaceStore();
   const kanban = options?.kanbanStore ?? new KanbanStore();
+  if (demoPublic) seedDemoBoard(kanban);
   const memory = options?.memoryStore ?? new MemoryStore();
   const swarms = options?.swarmStore ?? new SwarmStore();
   const skills = options?.skillStore ?? new SkillStore();
@@ -106,7 +111,7 @@ export async function buildApp(options?: {
 
   app.get("/api/settings", async (): Promise<GridSettings> => ({
     service: "agentgrid",
-    version: "0.1.0",
+    version: "0.2.0",
     ports: {
       server: Number(process.env.PORT ?? DEFAULT_SERVER_PORT),
       web: DEFAULT_WEB_PORT,
@@ -121,15 +126,22 @@ export async function buildApp(options?: {
       cwdHint: "repository root",
       framing: ["content-length", "ndjson"],
     },
+    demo: {
+      public: demoPublic,
+      simulatedAgents: detectAgents(demoPublic)
+        .filter((a) => a.runtime === "simulated")
+        .map((a) => a.id),
+    },
     studio: {
       live: false,
       publicUrl: null,
-      reason:
-        "Not published on agentic-systems-studio.com until Agent Grid meets the Agent Fleet quality bar (claimed features work, critical paths tested, docs honest).",
+      reason: demoPublic
+        ? "DEMO_PUBLIC runs local simulators for missing CLIs. It does not publish a hostname. agentic-systems-studio.com Live stays off; the API remains on 127.0.0.1."
+        : "Not published on agentic-systems-studio.com. Run `pnpm demo` for local simulators when vendor CLIs are missing. The API stays on 127.0.0.1.",
     },
   }));
 
-  app.get("/api/agents", async () => ({ agents: detectAgents() }));
+  app.get("/api/agents", async () => ({ agents: detectAgents(demoPublic) }));
 
   app.get("/api/sessions", async () => ({ sessions: sessions.list() }));
 

@@ -61,10 +61,19 @@ export function isAgentId(value: string): value is AgentId {
 export const DEFAULT_SERVER_PORT = 4318;
 export const DEFAULT_WEB_PORT = 5318;
 
+/** How the next launch of this agent will run on this machine. */
+export type AgentRuntime = "native" | "simulated" | "missing";
+
 export interface AgentAvailability {
   id: AgentId;
   displayName: string;
   available: boolean;
+  /**
+   * `native` — real binary on PATH.
+   * `simulated` — DEMO_PUBLIC local stand-in (no vendor CLI, no model call).
+   * `missing` — not on PATH and demo mode is off.
+   */
+  runtime: AgentRuntime;
   command: string;
   installHint: string;
 }
@@ -82,6 +91,8 @@ export interface SessionInfo {
   /** Present from 0.2.0. Older persisted clients should treat missing as running. */
   status?: SessionStatus;
   exitCode?: number | null;
+  /** `simulated` when DEMO_PUBLIC spawned a local stand-in instead of a vendor CLI. */
+  runtime?: Extract<AgentRuntime, "native" | "simulated">;
 }
 
 export interface CreateSessionRequest {
@@ -294,6 +305,14 @@ export interface GridSettings {
     args: string[];
     cwdHint: string;
     framing: Array<"content-length" | "ndjson">;
+  };
+  demo: {
+    /**
+     * True when DEMO_PUBLIC is set. Missing vendor CLIs launch local simulators.
+     * This is not a public hostname and does not mean the studio site is Live.
+     */
+    public: boolean;
+    simulatedAgents: AgentId[];
   };
   studio: {
     live: false;

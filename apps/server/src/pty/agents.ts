@@ -4,8 +4,10 @@ import {
   AGENT_SPECS,
   type AgentAvailability,
   type AgentId,
+  type AgentRuntime,
   type AgentSpec,
 } from "@agentgrid/shared";
+import { demoPublicEnabled } from "./demo-mode.js";
 
 function executableCandidates(command: string): string[] {
   if (process.platform !== "win32") return [command];
@@ -68,16 +70,50 @@ export function resolveAgent(agentId: AgentId): {
   return { spec, resolvedCommand };
 }
 
-export function detectAgents(): AgentAvailability[] {
-  return (Object.keys(AGENT_SPECS) as AgentId[]).map((id) => {
-    const resolved = resolveAgent(id);
-    const spec = AGENT_SPECS[id];
+function availability(
+  id: AgentId,
+  demoPublic: boolean,
+  resolve: (id: AgentId) => ReturnType<typeof resolveAgent>,
+): AgentAvailability {
+  const spec = AGENT_SPECS[id];
+  const resolved = resolve(id);
+  if (resolved) {
     return {
       id,
       displayName: spec.displayName,
-      available: resolved !== null,
-      command: resolved?.resolvedCommand ?? spec.command,
+      available: true,
+      runtime: "native",
+      command: resolved.resolvedCommand,
       installHint: spec.installHint,
     };
-  });
+  }
+  if (demoPublic && id !== "shell") {
+    return {
+      id,
+      displayName: spec.displayName,
+      available: true,
+      runtime: "simulated",
+      command: spec.command,
+      installHint: `${spec.installHint} DEMO_PUBLIC is serving a local simulator until that binary is on PATH.`,
+    };
+  }
+  const runtime: AgentRuntime = "missing";
+  return {
+    id,
+    displayName: spec.displayName,
+    available: false,
+    runtime,
+    command: spec.command,
+    installHint:
+      id === "shell"
+        ? spec.installHint
+        : `${spec.installHint} Or run \`pnpm demo\` (DEMO_PUBLIC=1) for a local simulator.`,
+  };
+}
+
+export function detectAgents(
+  demoPublic = demoPublicEnabled(),
+  resolve: (id: AgentId) => ReturnType<typeof resolveAgent> = resolveAgent,
+): AgentAvailability[] {
+  return (Object.keys(AGENT_SPECS) as AgentId[]).map((id) => availability(id, demoPublic, resolve));
 }

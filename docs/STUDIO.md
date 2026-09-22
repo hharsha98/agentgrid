@@ -17,6 +17,11 @@ quality bar:
 
 `GET /api/settings` always returns `studio.live: false` and `publicUrl: null`.
 
+`DEMO_PUBLIC=1` (`pnpm demo`) is a **local** switch. Missing vendor CLIs open
+an in-pane simulator. That flag does not create a hostname, does not set
+`studio.live`, and does not talk to a model. Hosting notes, including a
+single-operator Contabo SSH tunnel, are in [HOSTING.md](./HOSTING.md).
+
 ## What is not this task
 
 - Changing Cloudflare DNS
