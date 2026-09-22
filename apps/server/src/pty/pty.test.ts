@@ -24,9 +24,22 @@ describe("RingBuffer", () => {
 
 describe("agents", () => {
   it("detects shell as available", () => {
-    const agents = detectAgents();
+    const agents = detectAgents(false);
     const shell = agents.find((a) => a.id === "shell");
     expect(shell?.available).toBe(true);
+    expect(shell?.runtime).toBe("native");
+  });
+
+  it("marks missing vendor CLIs simulated only when DEMO_PUBLIC is on", () => {
+    const resolve = (id: Parameters<typeof resolveAgent>[0]) =>
+      id === "shell" ? resolveAgent(id) : null;
+    const off = detectAgents(false, resolve);
+    expect(off.find((a) => a.id === "claude")?.runtime).toBe("missing");
+    expect(off.find((a) => a.id === "claude")?.available).toBe(false);
+    const on = detectAgents(true, resolve);
+    expect(on.find((a) => a.id === "claude")?.runtime).toBe("simulated");
+    expect(on.find((a) => a.id === "claude")?.available).toBe(true);
+    expect(on.find((a) => a.id === "shell")?.runtime).toBe("native");
   });
 
   it("resolves shell", () => {
@@ -83,5 +96,39 @@ describe("SessionManager I/O", () => {
     expect(exitCode).not.toBeUndefined();
     expect(mgr.write(info.id, "echo no\n")).toBe(false);
     mgr.dispose(info.id);
+  }, 10000);
+
+  it("runs a local simulator when DEMO_PUBLIC is on and the CLI is missing", async () => {
+    const mgr = new SessionManager({
+      demoPublic: true,
+      resolve: (id) => (id === "shell" ? resolveAgent(id) : null),
+    });
+    const info = mgr.create({ agentId: "claude", title: "sim-claude" });
+    expect(info.runtime).toBe("simulated");
+    const chunks: string[] = [];
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`sim timeout: ${chunks.join("")}`)), 8000);
+        let asked = false;
+        mgr.subscribe(info.id, (data) => {
+          chunks.push(data);
+          const text = chunks.join("");
+          if (text.includes("agentgrid-sim-ready") && !asked) {
+            asked = true;
+            mgr.write(info.id, "explain this grid layout\n");
+          }
+          if (text.includes("agentgrid-sim-reply") && text.includes("explain this grid layout")) {
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+      });
+    } finally {
+      mgr.dispose(info.id);
+    }
+    const text = chunks.join("");
+    expect(text).toContain("local simulator");
+    expect(text).toContain("explain this grid layout");
+    expect(text).toContain("Presets:");
   }, 10000);
 });

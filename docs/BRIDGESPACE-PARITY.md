@@ -33,7 +33,7 @@ Vibespace is the related desktop ADE; Grid is the Cursor-lane checkout (ports
 | Terminal search | Yes | ⌘/Ctrl+F + Search chip |
 | Scroll-to-bottom | Yes | Floating control when scrolled up |
 | Pane context menu | Yes | Copy / Paste / Clear |
-| Multi-agent CLIs | Yes | Claude, Cursor Agent, Codex, Gemini, shell |
+| Multi-agent CLIs | Yes | Real binaries when on PATH. `pnpm demo` simulates the ones that are missing |
 | Embedded localhost browser | No | Intentionally left to Vibespace |
 
 ## Intentionally out of scope (proprietary / cloud)
@@ -47,7 +47,7 @@ Vibespace is the related desktop ADE; Grid is the Cursor-lane checkout (ports
 | BridgeShot | No |
 | Paid / freemium cloud billing | No |
 | Inline terminal image protocols | Not implemented |
-| agentic-systems-studio.com Live URL | **No** — see [STUDIO.md](./STUDIO.md) |
+| agentic-systems-studio.com Live URL | **No** — see [STUDIO.md](./STUDIO.md) and [HOSTING.md](./HOSTING.md) |
 
 ## Remaining soft gaps
 

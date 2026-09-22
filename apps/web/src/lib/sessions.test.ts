@@ -21,5 +21,6 @@ describe("sameSessions", () => {
     expect(sameSessions(a, [session({ id: "1" })])).toBe(true);
     expect(sameSessions(a, [session({ id: "1", status: "exited" })])).toBe(false);
     expect(sameSessions(a, [session({ id: "2" })])).toBe(false);
+    expect(sameSessions(a, [session({ id: "1", runtime: "simulated" })])).toBe(false);
   });
 });

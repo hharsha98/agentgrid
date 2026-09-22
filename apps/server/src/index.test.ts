@@ -20,6 +20,7 @@ describe("HTTP API", () => {
   beforeAll(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), "agentgrid-api-ws-"));
     const built = await buildApp({
+      demoPublic: false,
       workspaceStore: new WorkspaceStore(join(tmpDir, "workspaces.json")),
       kanbanStore: new KanbanStore(join(tmpDir, "kanban.json")),
       memoryStore: new MemoryStore(join(tmpDir, "memory")),
@@ -297,6 +298,7 @@ describe("HTTP API", () => {
     };
     expect(body.studio.live).toBe(false);
     expect(body.studio.publicUrl).toBeNull();
+    expect((res.json() as { demo: { public: boolean } }).demo.public).toBe(false);
     expect(body.fsRoots.length).toBeGreaterThan(0);
     expect(body.mcp.framing).toContain("content-length");
   });
@@ -433,4 +435,103 @@ describe("HTTP API", () => {
     for (const s of created.sessions) sessions.dispose(s.id);
   });
 
+  it("returns 409 for a missing vendor CLI when demo mode is off", async () => {
+    const { resolveAgent } = await import("./pty/agents.js");
+    if (resolveAgent("claude")) return;
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      payload: { agentId: "claude", title: "needs-cli" },
+    });
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { installHint?: string }).installHint).toMatch(/claude/i);
+  });
+
+});
+
+describe("DEMO_PUBLIC", () => {
+  let app: FastifyInstance;
+  let sessions: SessionManager;
+  let tmpDir: string;
+
+  beforeAll(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "agentgrid-demo-"));
+    const built = await buildApp({
+      demoPublic: true,
+      workspaceStore: new WorkspaceStore(join(tmpDir, "workspaces.json")),
+      kanbanStore: new KanbanStore(join(tmpDir, "kanban.json")),
+      memoryStore: new MemoryStore(join(tmpDir, "memory")),
+      swarmStore: new SwarmStore(join(tmpDir, "swarms.json")),
+      skillStore: new SkillStore(),
+      promptStore: new PromptStore(join(tmpDir, "prompts.json")),
+      fsRoots: [tmpDir],
+    });
+    app = built.app;
+    sessions = built.sessions;
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    sessions.disposeAll();
+    await app.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("reports demo mode without claiming a studio URL", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/settings" });
+    const body = res.json() as {
+      demo: { public: boolean; simulatedAgents: string[] };
+      studio: { live: boolean; publicUrl: null };
+    };
+    expect(body.demo.public).toBe(true);
+    expect(body.studio.live).toBe(false);
+    expect(body.studio.publicUrl).toBeNull();
+    const agents = await app.inject({ method: "GET", url: "/api/agents" });
+    const claude = (
+      agents.json() as { agents: { id: string; available: boolean; runtime: string }[] }
+    ).agents.find((a) => a.id === "claude");
+    if (claude && claude.runtime !== "native") {
+      expect(claude.runtime).toBe("simulated");
+      expect(claude.available).toBe(true);
+      expect(body.demo.simulatedAgents).toContain("claude");
+    }
+  });
+
+  it("seeds an empty kanban board and dispatches a simulated pane", async () => {
+    const list = await app.inject({ method: "GET", url: "/api/kanban" });
+    const cards = (list.json() as { cards: { id: string; title: string; agentId: string }[] }).cards;
+    expect(cards.length).toBeGreaterThanOrEqual(3);
+    const card = cards.find((c) => c.agentId === "claude") ?? cards[0];
+    expect(card).toBeTruthy();
+    const dispatch = await app.inject({
+      method: "POST",
+      url: `/api/kanban/cards/${card!.id}/dispatch`,
+      payload: { cwd: tmpDir },
+    });
+    expect(dispatch.statusCode).toBe(201);
+    const body = dispatch.json() as {
+      session: { id: string; runtime?: string; agentId: string };
+      card: { column: string };
+    };
+    expect(body.card.column).toBe("in_progress");
+    if (body.session.runtime === "simulated") {
+      const chunks: string[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(chunks.join(""))), 8000);
+        const unsub = sessions.subscribe(body.session.id, (data) => {
+          chunks.push(data);
+          if (chunks.join("").includes("agentgrid-sim-reply")) {
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+        if (!unsub) {
+          clearTimeout(timer);
+          reject(new Error("subscribe failed"));
+        }
+      });
+      expect(chunks.join("")).toContain("Explain the terminal grid");
+    }
+    sessions.dispose(body.session.id);
+  }, 12000);
 });

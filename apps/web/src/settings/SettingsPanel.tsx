@@ -30,8 +30,10 @@ export function SettingsPanel({ agents }: Props) {
     <div className="settings-panel">
       <h2>Settings</h2>
       <p className="settings-lead">
-        Local ADE for the Cursor lane. Nothing here is published as Live on
-        agentic-systems-studio.com.
+        Local ADE for the Cursor lane. Studio Live stays off
+        {settings?.demo.public
+          ? " — DEMO_PUBLIC is a local simulator switch, not a public URL."
+          : ". Start with pnpm demo when vendor CLIs are missing."}
       </p>
       {error && <pre className="error">{error}</pre>}
 
@@ -43,6 +45,18 @@ export function SettingsPanel({ agents }: Props) {
             <dd>
               127.0.0.1:{settings.ports.server} (web :{settings.ports.web})
             </dd>
+            <dt>Demo</dt>
+            <dd>
+              {settings.demo.public
+                ? `DEMO_PUBLIC on${
+                    settings.demo.simulatedAgents.length
+                      ? ` · simulated: ${settings.demo.simulatedAgents.join(", ")}`
+                      : " · vendor CLIs are native"
+                  }`
+                : "off — missing CLIs return 409"}
+            </dd>
+            <dt>Studio</dt>
+            <dd>Live {settings.studio.live ? "yes" : "no"} · public URL none</dd>
             <dt>Data</dt>
             <dd>{settings.dataDir}</dd>
             <dt>File roots</dt>
@@ -60,14 +74,16 @@ export function SettingsPanel({ agents }: Props) {
       </section>
 
       <section className="settings-card">
-        <h3>Agents on PATH</h3>
+        <h3>Agents</h3>
         {agents.length === 0 && <div className="empty">Server offline — cannot detect CLIs</div>}
         <ul className="settings-agents">
           {agents.map((a) => (
             <li key={a.id}>
               <strong>{a.displayName}</strong>
-              <span className={a.available ? "ok" : "missing"}>
-                {a.available ? a.command : `missing — ${a.installHint}`}
+              <span className={a.runtime === "missing" ? "missing" : "ok"}>
+                {a.runtime === "native" && a.command}
+                {a.runtime === "simulated" && `simulated — ${a.installHint}`}
+                {a.runtime === "missing" && `missing — ${a.installHint}`}
               </span>
             </li>
           ))}
@@ -94,6 +110,10 @@ export function SettingsPanel({ agents }: Props) {
           <li>
             Not <strong>Agent Fleet</strong> — that is the multi-agent ops platform (chat, DAG,
             evals). Grid is a terminal grid for coding CLIs.
+          </li>
+          <li>
+            DEMO_PUBLIC simulators are local REPLs for missing CLIs. They are not Claude, Cursor,
+            Codex, or Gemini, and they do not call a model.
           </li>
           <li>
             Swarm is cooperative: it opens four PTY panes with role prompts. File ownership is

@@ -1,5 +1,7 @@
 import { EventEmitter } from "node:events";
 import { existsSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import * as pty from "node-pty";
 import { v4 as uuidv4 } from "uuid";
 import { AGENT_SPECS, type AgentId, type SessionInfo } from "@agentgrid/shared";
@@ -65,8 +67,27 @@ function childEnv(): Record<string, string> {
   return env;
 }
 
+export interface SessionManagerOptions {
+  /** When true, missing vendor CLIs spawn the local simulator instead of failing. */
+  demoPublic?: boolean;
+  /** Test seam. Defaults to PATH lookup. */
+  resolve?: typeof resolveAgent;
+}
+
+function simulatorScript(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "sim-agent.mjs");
+}
+
 export class SessionManager extends EventEmitter {
   private sessions = new Map<string, LiveSession>();
+  private readonly demoPublic: boolean;
+  private readonly resolve: typeof resolveAgent;
+
+  constructor(options: SessionManagerOptions = {}) {
+    super();
+    this.demoPublic = options.demoPublic ?? false;
+    this.resolve = options.resolve ?? resolveAgent;
+  }
 
   list(): SessionInfo[] {
     return [...this.sessions.values()].map((s) => ({ ...s.info }));
@@ -78,8 +99,9 @@ export class SessionManager extends EventEmitter {
   }
 
   create(opts: CreateSessionOptions): SessionInfo {
-    const resolved = resolveAgent(opts.agentId);
-    if (!resolved) {
+    const resolved = this.resolve(opts.agentId);
+    const simulated = !resolved && this.demoPublic && opts.agentId !== "shell";
+    if (!resolved && !simulated) {
       throw new AgentMissingError(opts.agentId, AGENT_SPECS[opts.agentId].installHint);
     }
 
@@ -90,18 +112,27 @@ export class SessionManager extends EventEmitter {
       throw new InvalidCwdError(cwd);
     }
     const id = uuidv4();
-    const title = opts.title?.trim() || `${resolved.spec.displayName}`;
+    const spec = resolved?.spec ?? AGENT_SPECS[opts.agentId];
+    const title = opts.title?.trim() || spec.displayName;
 
-    const integration = opts.agentId === "shell" ? shellIntegration(resolved.spec) : null;
-    const args = integration?.args ?? resolved.spec.args;
+    const integration = resolved && opts.agentId === "shell" ? shellIntegration(spec) : null;
+    const command = simulated ? process.execPath : resolved!.resolvedCommand;
+    const args = simulated
+      ? [simulatorScript(), opts.agentId]
+      : (integration?.args ?? spec.args);
     const env = {
       ...childEnv(),
       ...(integration?.extraEnv ?? {}),
+      ...(simulated ? { AGENTGRID_SIM: "1", AGENTGRID_SIM_AGENT: opts.agentId } : {}),
     };
+
+    if (simulated && !existsSync(simulatorScript())) {
+      throw new SessionSpawnError(`Simulator script missing: ${simulatorScript()}`);
+    }
 
     let term: pty.IPty;
     try {
-      term = pty.spawn(resolved.resolvedCommand, args, {
+      term = pty.spawn(command, args, {
         name: "xterm-256color",
         cols,
         rows,
@@ -146,6 +177,7 @@ export class SessionManager extends EventEmitter {
       title,
       status: "running",
       exitCode: null,
+      runtime: simulated ? "simulated" : "native",
     };
 
     const live: LiveSession = { info, term, scrollback, listeners, exitListeners };

@@ -7,7 +7,13 @@ export default defineConfig({
   // Relative asset URLs so the Tauri packaged app can load the built UI.
   base: "./",
   clearScreen: false,
+  preview: {
+    host: "127.0.0.1",
+    port: DEFAULT_WEB_PORT,
+    strictPort: true,
+  },
   server: {
+    host: "127.0.0.1",
     port: DEFAULT_WEB_PORT,
     strictPort: true,
     proxy: {

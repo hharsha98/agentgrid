@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AgentAvailability,
   AgentId,
+  GridSettings,
   KanbanCard,
   KanbanColumn,
   LayoutPreset,
@@ -23,6 +24,7 @@ import {
   type PaneNode,
 } from "./grid/splitTree";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { agentOptionLabel, sessionAgentLabel } from "./lib/agents";
 import { api } from "./lib/http";
 import { sameSessions } from "./lib/sessions";
 import {
@@ -62,6 +64,11 @@ function splitIds(sessions: SessionInfo[], count: LayoutPreset): (SessionInfo | 
   return Array.from({ length: count }, (_, i) => sessions[i] ?? null);
 }
 
+function presetForCount(count: number): LayoutPreset {
+  const presets: LayoutPreset[] = [1, 2, 4, 6, 8, 12, 16];
+  return presets.find((n) => n >= count) ?? 16;
+}
+
 export function App() {
   const saved = loadSavedWorkspace();
   const [health, setHealth] = useState<"checking" | "ok" | "down">("checking");
@@ -86,6 +93,7 @@ export function App() {
   >("grid");
   const [theme, setTheme] = useState<ThemeId>(() => loadTheme());
   const [cards, setCards] = useState<KanbanCard[]>([]);
+  const [settings, setSettings] = useState<GridSettings | null>(null);
 
   useEffect(() => {
     const payload: SavedWorkspace = {
@@ -124,6 +132,8 @@ export function App() {
       setTemplates(w.workspaces);
       const k = await api<{ cards: KanbanCard[] }>("/api/kanban");
       setCards(k.cards);
+      const g = await api<GridSettings>("/api/settings");
+      setSettings(g);
       setError(null);
     } catch (err) {
       setHealth("down");
@@ -192,19 +202,20 @@ export function App() {
       const missing = ids.filter((id) => !isAvailable(id));
       if (missing.length > 0) {
         throw new Error(
-          `Missing agents: ${missing.join(", ")}. Install their CLIs first.`,
+          `Missing agents: ${missing.join(", ")}. Install their CLIs, or start with pnpm demo for local simulators.`,
         );
       }
       setWorkspaceName(name);
       setLayoutMode("preset");
-      setLayout(ids.length <= 1 ? 1 : ids.length <= 2 ? 2 : 4);
       const created: SessionInfo[] = [];
       for (const id of ids) {
         const label = agents.find((a) => a.id === id)?.displayName ?? id;
         created.push(await createOne(id, `${name} · ${label}`));
       }
+      setPresetLayout(presetForCount(sessions.length + created.length));
       setSessions((prev) => [...prev, ...created]);
       setActiveId(created[0]?.id ?? null);
+      setView("grid");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -357,10 +368,11 @@ export function App() {
         { method: "POST", body: JSON.stringify({ cwd: cwd.trim() || undefined }) },
       );
       setCards((prev) => prev.map((c) => (c.id === id ? res.card : c)));
-      setSessions((prev) => [...prev, res.session]);
+      setSessions((prev) => [...prev.filter((s) => s.id !== res.session.id), res.session]);
       setActiveId(res.session.id);
       setView("grid");
-      setPresetLayout(2);
+      const nextCount = sessions.filter((s) => s.id !== res.session.id).length + 1;
+      setPresetLayout(presetForCount(nextCount));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -418,8 +430,16 @@ export function App() {
   const slots = splitIds(sessions, layout);
   const gridClass = layoutMode === "free" ? "grid-free" : `grid-${layout}`;
 
+  const selected = agents.find((a) => a.id === agentId);
+
   return (
-    <div className="app-shell">
+    <div className={settings?.demo.public ? "app-shell with-demo" : "app-shell"}>
+      {settings?.demo.public && (
+        <div className="demo-banner" role="status">
+          DEMO_PUBLIC — missing vendor CLIs run as local simulators in the panes. No model calls.
+          This API stays on 127.0.0.1. Studio Live is off.
+        </div>
+      )}
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">AG</div>
@@ -467,7 +487,7 @@ export function App() {
           />
         </label>
 
-        <label className="field">
+        <div className="field">
           <span>Layout</span>
           <div className="layout-row">
             <button
@@ -502,9 +522,9 @@ export function App() {
           {layoutMode === "free" && (
             <p className="layout-hint">H/V split buttons on each pane · drag the handle to resize</p>
           )}
-        </label>
+        </div>
 
-        <label className="field">
+        <div className="field">
           <span>Theme</span>
           <div className="layout-row">
             {THEME_IDS.map((id) => (
@@ -518,9 +538,9 @@ export function App() {
               </button>
             ))}
           </div>
-        </label>
+        </div>
 
-        <label className="field">
+        <div className="field">
           <span>Quick launch</span>
           <div className="preset-col">
             <button
@@ -549,19 +569,34 @@ export function App() {
             >
               Two shells
             </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || health !== "ok"}
+              onClick={() =>
+                void launchPreset(
+                  ["claude", "cursor-agent", "codex", "gemini"],
+                  workspaceName || "demo",
+                )
+              }
+            >
+              Demo grid (4)
+            </button>
           </div>
-        </label>
+        </div>
 
         <label className="field">
           <span>Agent</span>
           <select value={agentId} onChange={(e) => setAgentId(e.target.value as AgentId)}>
             {agents.map((a) => (
               <option key={a.id} value={a.id} disabled={!a.available}>
-                {a.displayName}
-                {!a.available ? " (missing)" : ""}
+                {agentOptionLabel(a)}
               </option>
             ))}
           </select>
+          {selected?.runtime === "simulated" && (
+            <p className="layout-hint">Local simulator — that CLI is not on PATH.</p>
+          )}
         </label>
 
         <label className="field">
@@ -649,10 +684,7 @@ export function App() {
               onClick={() => setActiveId(s.id)}
             >
               <span className="session-title">{s.title}</span>
-              <span className="session-meta">
-                {s.agentId}
-                {s.status === "exited" ? " · exited" : ""}
-              </span>
+              <span className="session-meta">{sessionAgentLabel(s)}</span>
               <span
                 className="kill"
                 role="button"
@@ -720,7 +752,8 @@ Free layout      H/V chips on panes + drag handles
             cwd={cwd}
             onLaunched={(swarm) => {
               setWorkspaceName(swarm.name);
-              setPresetLayout(4);
+              setView("grid");
+              setPresetLayout(presetForCount(sessions.length + swarm.members.length));
               void refresh();
             }}
           />
@@ -769,7 +802,11 @@ Free layout      H/V chips on panes + drag handles
             >
               <header className="pane-bar">
                 <span>{session ? session.title : `Empty slot ${i + 1}`}</span>
-                {session && <span className="pane-agent">{session.agentId}</span>}
+                {session && (
+                  <span className={session.runtime === "simulated" ? "pane-agent sim" : "pane-agent"}>
+                    {sessionAgentLabel(session)}
+                  </span>
+                )}
               </header>
               <div className="pane-body">
                 {session ? (

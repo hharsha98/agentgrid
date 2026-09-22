@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import type { AgentId, KanbanCard, KanbanColumn } from "@agentgrid/shared";
+import type { AgentAvailability, AgentId, KanbanCard, KanbanColumn } from "@agentgrid/shared";
+import { agentOptionLabel } from "../lib/agents";
 
 const COLUMNS: { id: KanbanColumn; label: string }[] = [
   { id: "todo", label: "Todo" },
@@ -10,7 +11,7 @@ const COLUMNS: { id: KanbanColumn; label: string }[] = [
 
 interface Props {
   cards: KanbanCard[];
-  agents: { id: AgentId; displayName: string; available: boolean }[];
+  agents: Pick<AgentAvailability, "id" | "displayName" | "available" | "runtime">[];
   busy?: boolean;
   onCreate: (title: string, agentId: AgentId, body?: string) => void;
   onMove: (id: string, column: KanbanColumn) => void;
@@ -66,7 +67,7 @@ export function KanbanBoard({
         <select value={agentId} onChange={(e) => setAgentId(e.target.value as AgentId)}>
           {agents.map((a) => (
             <option key={a.id} value={a.id} disabled={!a.available}>
-              {a.displayName}
+              {agentOptionLabel(a)}
             </option>
           ))}
         </select>

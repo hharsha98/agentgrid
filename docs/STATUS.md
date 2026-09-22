@@ -1,6 +1,6 @@
 # agentgrid — honest status
 
-Last updated: 2026-09-14. This is the audit used to stop claiming features that
+Last updated: 2026-09-22. This is the audit used to stop claiming features that
 do not work. “Works” means a critical path is implemented **and** covered by
 automated tests, or exercised by a real PTY in CI. “Partial” means the UI/API
 exists but is cooperative, environment-dependent, or not CI-packaged.
@@ -12,6 +12,7 @@ exists but is cooperative, environment-dependent, or not CI-packaged.
 |---|---|---|---|
 | Health + settings | Works | `GET /api/health`, `GET /api/settings` | Settings is local-only; no remote config |
 | Agent PATH detection | Works | `GET /api/agents`; shell is always expected | Windows `.exe` lookup is best-effort |
+| DEMO_PUBLIC simulators | Works | `pnpm demo`; missing CLIs spawn `sim-agent.mjs` under a real PTY | Not a vendor model. Real binaries still win. Off unless `DEMO_PUBLIC` is set |
 | PTY sessions | Works | create/list/delete + exit status + WS I/O tests | Scrollback kept until kill; no remote attach |
 | Grid layouts | Works | presets 1/2/4/6/8/12/16; free split unit tests | No 10/14 presets (Vibespace/BridgeSpace extras) |
 | Workspace templates | Works | save/list/launch/delete HTTP tests | Launch fails closed if a pane’s CLI is missing |
@@ -27,7 +28,7 @@ exists but is cooperative, environment-dependent, or not CI-packaged.
 | Themes | Works | Phosphor / Amber / Contrast unit tests | Not Vibespace’s 26-theme set |
 | Desktop (Tauri) | Partial | config check in CI (`check-config.mjs`) | No packaged DMG/NSIS verification in this repo |
 | Embedded browser pane | No | Out of scope for Cursor-lane Grid | Lives in Vibespace; do not half-port it |
-| Studio Live URL | No | `studio.live` is always `false` | See [STUDIO.md](./STUDIO.md) |
+| Studio Live URL | No | `studio.live` is always `false` | See [STUDIO.md](./STUDIO.md). Contabo = SSH tunnel, not a public site: [HOSTING.md](./HOSTING.md) |
 
 ## Failures that were real (and the fix)
 
